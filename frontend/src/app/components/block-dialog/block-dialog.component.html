@@ -1,0 +1,86 @@
+@if (planner.state().blockDialogOpen) {
+  <div class="dialog-backdrop" (click)="planner.closeBlockDialog()"></div>
+  <section class="block-dialog" role="dialog" aria-modal="true" aria-labelledby="blockBuilderTitle">
+    <div class="dialog-panel block-builder">
+      <div class="panel-section-heading">
+        <div>
+          <p class="eyebrow">Block detail</p>
+          <h3 id="blockBuilderTitle">Add Training Block</h3>
+        </div>
+        <div class="dialog-heading-actions">
+          <strong>{{ planner.selectedDay().label }}</strong>
+          <button class="text-button" type="button" (click)="planner.closeBlockDialog()">Close</button>
+        </div>
+      </div>
+
+      <form class="block-form" (ngSubmit)="addBlock()">
+        <label>
+          <span>Block name</span>
+          <input name="blockName" type="text" [(ngModel)]="name" required />
+        </label>
+
+        <div class="form-row">
+          <label>
+            <span>Category</span>
+            <select name="category" [(ngModel)]="category">
+              <option>Speed</option>
+              <option>Contact</option>
+              <option>Tactical</option>
+              <option>Technical skill</option>
+              <option>Decision making</option>
+              <option>Strength</option>
+              <option>Conditioning</option>
+              <option>Recovery</option>
+            </select>
+          </label>
+          <label>
+            <span>Default level</span>
+            <select name="level" [(ngModel)]="level">
+              <option>Low</option>
+              <option>Medium</option>
+              <option>High</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="form-row">
+          <label>
+            <span>Minutes</span>
+            <input name="minutes" type="number" min="1" max="240" [(ngModel)]="minutes" />
+          </label>
+          <label>
+            <span>Demand score</span>
+            <input name="demand" type="number" min="0" max="10" step="0.5" [(ngModel)]="demand" />
+          </label>
+        </div>
+
+        <label>
+          <span>Metadata tags</span>
+          <input name="tags" type="text" [(ngModel)]="tags" />
+        </label>
+
+        <fieldset class="exposure-fieldset">
+          <legend>Exposure flags</legend>
+          @for (exposure of exposureOptions; track exposure) {
+            <label>
+              <input
+                type="checkbox"
+                name="exposure"
+                [checked]="isExposureSelected(exposure)"
+                (change)="toggleExposure(exposure, $any($event.target).checked)"
+              />
+              {{ exposure }}
+            </label>
+          }
+        </fieldset>
+
+        <label>
+          <span>Coach notes</span>
+          <textarea name="notes" rows="4" [(ngModel)]="notes"></textarea>
+        </label>
+
+        <button class="primary-button" type="submit">Add Block</button>
+      </form>
+    </div>
+  </section>
+}

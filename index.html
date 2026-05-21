@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Practice Planner</title>
+    <link rel="stylesheet" href="styles.css?v=day-header-colors-1">
+  </head>
+  <body>
+    <header class="app-header">
+      <div>
+        <p class="eyebrow">Practice Planner</p>
+        <h1>Weekly Demand Map</h1>
+      </div>
+      <div class="header-actions">
+        <label class="field-inline">
+          <span>Sport</span>
+          <select id="sportSelect">
+            <option value="football">Football</option>
+            <option value="rugby">Rugby</option>
+          </select>
+        </label>
+        <label class="field-inline">
+          <span>Template</span>
+          <select id="templateSelect">
+            <option value="gameFriday">Game Friday</option>
+            <option value="gameSaturday">Game Saturday</option>
+          </select>
+        </label>
+        <button class="icon-button" id="printButton" type="button" title="Print or save as PDF">PDF</button>
+      </div>
+    </header>
+
+    <main class="app-shell">
+      <section class="planner-area" aria-label="Weekly demand planner">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Planner</p>
+          </div>
+          <div class="planner-heading-meta">
+            <p class="section-note">Click a day column, adjust the board, then add blocks to shape demand and exposure.</p>
+            <div class="summary-strip" aria-label="Weekly summary">
+              <div class="summary-item">
+                <span>Total planned AU</span>
+                <strong id="weekAu">0</strong>
+              </div>
+              <div class="summary-item">
+                <span>Highest day</span>
+                <strong id="peakDay">None</strong>
+              </div>
+              <div class="summary-item">
+                <span>Exposure watch</span>
+                <strong id="exposureWatch">Balanced</strong>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid-wrap">
+          <table class="demand-grid" aria-label="Weekly demand planning grid">
+            <thead>
+              <tr id="dayHeaderRow">
+                <th scope="col" class="guide-cell">Guide</th>
+              </tr>
+            </thead>
+            <tbody id="gridBody"></tbody>
+          </table>
+        </div>
+
+        <div class="legend-row" aria-label="Demand legend">
+          <span class="legend low">Low</span>
+          <span class="legend medium">Medium</span>
+          <span class="legend high">High</span>
+          <span class="legend max">Max</span>
+          <span class="legend neutral">Editable planning cells</span>
+          <span class="legend neutral">Block AU priority</span>
+          <span class="legend neutral">Keywords guide empty cells</span>
+        </div>
+      </section>
+
+      <aside class="block-panel" aria-labelledby="blockPanelTitle">
+        <div class="section-heading compact panel-title">
+          <div>
+            <p class="eyebrow">Inspector</p>
+            <h2 id="blockPanelTitle">Day Planning</h2>
+          </div>
+          <span class="selected-day" id="selectedDayLabel">MON</span>
+        </div>
+
+        <section class="panel-section day-overview" aria-labelledby="dayOverviewTitle">
+          <div class="panel-section-heading">
+            <div>
+              <p class="eyebrow">Overall day</p>
+              <h3 id="dayOverviewTitle">Day Overview</h3>
+            </div>
+            <strong id="selectedDayTheme">Install</strong>
+          </div>
+
+          <label class="day-focus-field">
+            <span>Day focus</span>
+            <input id="dayFocusInput" name="dayFocusInput" type="text" value="Install">
+          </label>
+
+          <div class="day-score">
+            <div>
+              <span>Daily planned AU</span>
+              <strong id="selectedDayAu">0</strong>
+            </div>
+            <div>
+              <span>Current category</span>
+              <strong id="selectedDayLevel">Low</strong>
+            </div>
+          </div>
+
+          <div class="day-context">
+            <div>
+              <span>Assigned blocks</span>
+              <strong id="selectedBlockCount">0</strong>
+            </div>
+            <div>
+              <span>Exposure flags</span>
+              <strong id="selectedExposureCount">0</strong>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel-section current-blocks" aria-labelledby="currentBlocksTitle">
+          <div class="block-list-heading">
+            <div>
+              <p class="eyebrow">Assigned work</p>
+              <h3 id="currentBlocksTitle">Current Day Blocks</h3>
+            </div>
+            <button class="text-button" id="clearDayButton" type="button">Clear Day</button>
+          </div>
+          <div id="blockList" class="block-list" aria-live="polite"></div>
+        </section>
+
+        <section class="panel-section add-block-action" aria-labelledby="addBlockActionTitle">
+          <div>
+            <p class="eyebrow">Block detail</p>
+            <h3 id="addBlockActionTitle">Add Training Block</h3>
+          </div>
+          <button class="primary-button" id="openBlockBuilderButton" type="button">New Block</button>
+        </section>
+      </aside>
+    </main>
+
+    <dialog class="block-dialog" id="blockDialog" aria-labelledby="blockBuilderTitle">
+      <section class="dialog-panel block-builder">
+        <div class="panel-section-heading">
+          <div>
+            <p class="eyebrow">Block detail</p>
+            <h3 id="blockBuilderTitle">Add Training Block</h3>
+          </div>
+          <div class="dialog-heading-actions">
+            <strong id="blockBuilderDay">MON</strong>
+            <button class="text-button" id="closeBlockBuilderButton" type="button">Close</button>
+          </div>
+        </div>
+
+        <form id="blockForm" class="block-form">
+          <label>
+            <span>Block name</span>
+            <input id="blockName" name="blockName" type="text" value="Max velocity exposure" required>
+          </label>
+
+          <div class="form-row">
+            <label>
+              <span>Category</span>
+              <select id="blockCategory" name="blockCategory">
+                <option>Speed</option>
+                <option>Contact</option>
+                <option>Tactical</option>
+                <option>Technical skill</option>
+                <option>Decision making</option>
+                <option>Strength</option>
+                <option>Conditioning</option>
+                <option>Recovery</option>
+              </select>
+            </label>
+            <label>
+              <span>Default level</span>
+              <select id="blockLevel" name="blockLevel">
+                <option>Low</option>
+                <option selected>Medium</option>
+                <option>High</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="form-row">
+            <label>
+              <span>Minutes</span>
+              <input id="blockMinutes" name="blockMinutes" type="number" min="1" max="240" value="18">
+            </label>
+            <label>
+              <span>Demand score</span>
+              <input id="blockDemand" name="blockDemand" type="number" min="0" max="10" step="0.5" value="8">
+            </label>
+          </div>
+
+          <label>
+            <span>Metadata tags</span>
+            <input id="blockTags" name="blockTags" type="text" value="max speed, full rest, field space">
+          </label>
+
+          <fieldset class="exposure-fieldset">
+            <legend>Exposure flags</legend>
+            <label><input type="checkbox" name="exposure" value="Max sprint count" checked> Max sprint count</label>
+            <label><input type="checkbox" name="exposure" value="High-speed running"> High-speed running</label>
+            <label><input type="checkbox" name="exposure" value="Accelerations/decelerations"> Accel/decel</label>
+            <label><input type="checkbox" name="exposure" value="Jump/landing contacts"> Jump/landing</label>
+            <label><input type="checkbox" name="exposure" value="Change-of-direction volume"> COD</label>
+            <label><input type="checkbox" name="exposure" value="Heavy sets"> Heavy sets</label>
+            <label><input type="checkbox" name="exposure" value="Near failure sets"> Near failure</label>
+            <label><input type="checkbox" name="exposure" value="Velocity loss"> Velocity loss</label>
+          </fieldset>
+
+          <label>
+            <span>Coach notes</span>
+            <textarea id="blockNotes" name="blockNotes" rows="4">Build full recovery between reps. Keep volume low if contact is high later in the week.</textarea>
+          </label>
+
+          <button class="primary-button" type="submit">Add Block</button>
+        </form>
+      </section>
+    </dialog>
+
+    <script src="app.js?v=day-header-colors-1"></script>
+  </body>
+</html>

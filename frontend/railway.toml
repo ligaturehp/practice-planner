@@ -1,0 +1,11 @@
+[build]
+builder = "RAILPACK"
+buildCommand = "npm ci && npm run build"
+watchPatterns = ["src/**", "public/**", "package.json", "package-lock.json", "angular.json", "server.mjs", "railway.toml"]
+
+[deploy]
+startCommand = "npm start"
+healthcheckPath = "/healthz"
+healthcheckTimeout = 30
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3

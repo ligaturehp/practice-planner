@@ -1,0 +1,65 @@
+<div class="grid-wrap">
+  <table class="demand-grid" aria-label="Weekly demand planning grid">
+    <thead>
+      <tr>
+        <th scope="col" class="guide-cell">Guide</th>
+        @for (day of planner.state().days; track day.id) {
+          <th scope="col" class="day-head level-{{ planner.dayLevels()[day.id].toLowerCase() }}" [class.is-selected]="day.id === planner.state().selectedDay">
+            <button type="button" (click)="planner.selectDay(day.id)">
+              <span class="day-name">{{ day.label }}</span>
+              <span>{{ day.title }}</span>
+              <span class="day-au">{{ dayAu(day.id) }} AU</span>
+              <span class="day-level">{{ planner.dayLevels()[day.id] }}</span>
+            </button>
+          </th>
+        }
+      </tr>
+    </thead>
+    <tbody>
+      @for (label of planner.state().rowLabels; track label; let rowIndex = $index) {
+        <tr>
+          <th scope="row" class="row-label">{{ label }}</th>
+          @for (day of planner.state().days; track day.id) {
+            @let cellValue = planner.state().grid[day.id][rowIndex];
+            @let blocks = cellBlocks(day.id, label);
+            @let blockLevel = planner.blockCellAuLevels()[day.id + ':' + label];
+            <td class="demand-cell {{ levelClass(cellValue, blockLevel) }}" [class.has-blocks]="blocks.length">
+              <textarea
+                class="cell-editor"
+                rows="2"
+                [ngModel]="cellValue"
+                (focus)="planner.selectDay(day.id)"
+                (ngModelChange)="planner.updateCell(day.id, rowIndex, $event)"
+                [attr.aria-label]="day.label + ' ' + label"
+              ></textarea>
+
+              @if (blocks.length) {
+                <div class="cell-block-stack">
+                  <div class="cell-block-label">
+                    {{ blocks.length }} block{{ blocks.length === 1 ? '' : 's' }} |
+                    {{ totalBlockAu(blocks) }} AU |
+                    {{ blockLevel }}
+                  </div>
+
+                  @for (block of blocks; track block.id) {
+                    <details class="grid-block-reference">
+                      <summary>
+                        <span>{{ block.name }}</span>
+                        <strong>{{ blockAu(block) }} AU</strong>
+                      </summary>
+                      <div class="grid-block-detail">
+                        <p><strong>Tags:</strong> {{ block.tags.join(', ') || 'None' }}</p>
+                        <p><strong>Exposure:</strong> {{ block.exposures.join(', ') || 'None' }}</p>
+                        <p><strong>Notes:</strong> {{ block.notes || 'None' }}</p>
+                      </div>
+                    </details>
+                  }
+                </div>
+              }
+            </td>
+          }
+        </tr>
+      }
+    </tbody>
+  </table>
+</div>

@@ -1,0 +1,75 @@
+<header class="app-header">
+  <div>
+    <p class="eyebrow">Practice Planner</p>
+    <h1>Weekly Demand Map</h1>
+  </div>
+  <div class="header-actions">
+    <label class="field-inline">
+      <span>Sport</span>
+      <select [ngModel]="planner.state().sport" (ngModelChange)="setSport($event)">
+        <option value="football">Football</option>
+        <option value="rugby">Rugby</option>
+      </select>
+    </label>
+    <label class="field-inline">
+      <span>Template</span>
+      <select [ngModel]="planner.state().template" (ngModelChange)="setTemplate($event)">
+        <option value="gameFriday">Game Friday</option>
+        <option value="gameSaturday">Game Saturday</option>
+      </select>
+    </label>
+    <button class="icon-button" type="button" title="Print or save as PDF" (click)="planner.print()">PDF</button>
+    <button class="text-button" type="button" (click)="planner.toggleSavedPlans()">Plans</button>
+    @if (api.currentUser()) {
+      <span class="account-chip">{{ api.currentUser()?.email }}</span>
+      <button class="text-button" type="button" (click)="logout()">Sign Out</button>
+    } @else {
+      <button class="text-button" type="button" (click)="planner.openAuthPanel()">Account</button>
+    }
+  </div>
+</header>
+
+<main class="app-shell">
+  <section class="planner-area" aria-label="Weekly demand planner">
+    <div class="section-heading">
+      <div>
+        <p class="eyebrow">Planner</p>
+      </div>
+      <div class="planner-heading-meta">
+        <p class="section-note">Click a day column, adjust the board, then add blocks to shape demand and exposure.</p>
+        <div class="summary-strip" aria-label="Weekly summary">
+          <div class="summary-item">
+            <span>Total planned AU</span>
+            <strong>{{ planner.weekSummary().totalAu }}</strong>
+          </div>
+          <div class="summary-item">
+            <span>Highest day</span>
+            <strong>{{ planner.weekSummary().peakDay }}</strong>
+          </div>
+          <div class="summary-item">
+            <span>Exposure watch</span>
+            <strong>{{ planner.weekSummary().exposureWatch }}</strong>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <app-demand-grid />
+
+    <div class="legend-row" aria-label="Demand legend">
+      <span class="legend low">Low</span>
+      <span class="legend medium">Medium</span>
+      <span class="legend high">High</span>
+      <span class="legend max">Max</span>
+      <span class="legend neutral">Editable planning cells</span>
+      <span class="legend neutral">Block AU priority</span>
+      <span class="legend neutral">Keywords guide empty cells</span>
+    </div>
+  </section>
+
+  <app-day-inspector />
+</main>
+
+<app-block-dialog />
+<app-auth-panel />
+<app-saved-plans-drawer />

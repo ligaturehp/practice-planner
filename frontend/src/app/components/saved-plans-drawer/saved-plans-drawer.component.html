@@ -1,0 +1,53 @@
+@if (planner.state().savedPlansOpen) {
+  <aside class="saved-drawer" aria-labelledby="savedPlansTitle">
+    <div class="panel-section-heading">
+      <div>
+        <p class="eyebrow">Plans</p>
+        <h3 id="savedPlansTitle">Saved Plans</h3>
+      </div>
+      <button class="text-button" type="button" (click)="planner.toggleSavedPlans()">Close</button>
+    </div>
+
+    <label class="day-focus-field">
+      <span>Plan name</span>
+      <input type="text" [(ngModel)]="planName" />
+    </label>
+    <button class="primary-button" type="button" (click)="savePlan()">
+      {{ api.currentUser() ? 'Save To Account' : 'Save Guest Copy' }}
+    </button>
+    @if (!api.currentUser()) {
+      <button class="text-button wide-button" type="button" (click)="planner.openAuthPanel()">Create Account To Save</button>
+    } @else {
+      <button class="text-button wide-button" type="button" (click)="refreshCloudPlans()">Refresh Account Plans</button>
+    }
+    @if (status) {
+      <p class="block-notes">{{ status }}</p>
+    }
+
+    <div class="saved-plan-list">
+      @if (!api.currentUser() && !planner.savedPlans().length) {
+        <p class="block-notes">No guest plans saved in this browser.</p>
+      }
+      @if (api.currentUser() && !api.cloudPlans().length) {
+        <p class="block-notes">No account plans saved yet.</p>
+      }
+
+      @for (plan of api.currentUser() ? api.cloudPlans() : planner.savedPlans(); track plan.id) {
+        <article class="saved-plan">
+          <div>
+            <strong>{{ plan.name }}</strong>
+            <span>{{ plan.updatedAt | date: 'short' }}</span>
+          </div>
+          <div class="saved-plan-actions">
+            <button class="text-button" type="button" (click)="planner.loadPlan(plan)">Load</button>
+            @if (api.currentUser()) {
+              <button class="remove-block" type="button" (click)="deleteCloudPlan(plan.id)">Delete</button>
+            } @else {
+              <button class="remove-block" type="button" (click)="planner.deletePlan(plan.id)">Delete</button>
+            }
+          </div>
+        </article>
+      }
+    </div>
+  </aside>
+}

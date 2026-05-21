@@ -212,8 +212,34 @@ Build a static first-pass UI that focuses on a 30,000-foot weekly demand map for
 
 ## Railway Two-Service Deployment Plan
 
-- [ ] Add a Railway config for the Angular frontend service.
-- [ ] Add a production static server for the built Angular app with SPA fallback.
-- [ ] Tighten backend Railway config for monorepo service deployment.
-- [ ] Update deployment docs for two Railway services and required variables.
-- [ ] Verify frontend build/start and backend build/tests after config changes.
+- [x] Add a Railway config for the Angular frontend service.
+- [x] Add a production static server for the built Angular app with SPA fallback.
+- [x] Tighten backend Railway config for monorepo service deployment.
+- [x] Update deployment docs for two Railway services and required variables.
+- [x] Verify frontend build/start and backend build/tests after config changes.
+
+## Railway Two-Service Deployment Review
+
+- Added `frontend/railway.toml` for the Angular service with Railpack, build command, start command, health check, restart policy, and watch patterns.
+- Added `frontend/server.mjs` to serve `dist/frontend/browser`, expose `/healthz`, and fall back to `index.html` for client-side Angular routes.
+- Added `frontend/scripts/write-environment.mjs` so Railway can compile the frontend with `API_BASE_URL` or `PRACTICE_PLANNER_API_ORIGIN` set to the backend service URL.
+- Updated `backend/railway.toml` with watch patterns and restart retry settings.
+- Updated deployment docs for two Railway services: `/frontend`, `/backend`, plus Railway PostgreSQL.
+- Verified `API_BASE_URL=https://api.example.test node scripts/write-environment.mjs && npm run build` passes.
+- Verified `PORT=4300 npm start` serves `/healthz` and the Angular index from the production build.
+- Verified `npm run build`, `npm test -- --watch=false`, `go test ./...`, and `go build ./cmd/api` pass.
+- ASCII check passed for changed source, docs, and task files.
+
+## Frontend Railway Lockfile Fix Plan
+
+- [x] Regenerate `frontend/package-lock.json` so it is in sync with `frontend/package.json` and Linux optional dependencies.
+- [x] Run the exact Railway frontend build command locally with `npm ci`.
+- [x] Verify frontend tests still pass.
+- [x] Record the deployment fix and results.
+
+## Frontend Railway Lockfile Fix Review
+
+- Root cause: Railway's Linux clean install needed `@emnapi/core`, `@emnapi/runtime`, and `@emnapi/wasi-threads` entries that were not represented as installable lockfile packages.
+- Added those packages as explicit frontend dev dependencies so `npm ci` has stable lockfile entries on Railway.
+- `rm -rf node_modules && npm ci && node scripts/write-environment.mjs && npm run build` passed in `frontend/`.
+- `npm test -- --watch=false` passed in `frontend/`: 2 test files, 8 tests.

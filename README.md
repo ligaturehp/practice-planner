@@ -38,13 +38,13 @@ Deploy this repo to Railway as two services plus one PostgreSQL database.
 - Build command: handled by `frontend/railway.toml`
 - Start command: handled by `frontend/railway.toml`
 
-Set this variable after the backend service URL exists:
+Set one of these variables after the backend service URL exists:
 
 ```txt
-PRACTICE_PLANNER_API_ORIGIN=https://<your-backend-service>.up.railway.app
+API_BASE_URL=https://<your-backend-service>.up.railway.app
 ```
 
-The Angular production environment currently uses `frontend/src/environments/environment.ts`; update `apiBaseUrl` to the backend Railway URL before deploying the frontend.
+`frontend/railway.toml` writes the Angular production environment during the Railway build. `PRACTICE_PLANNER_API_ORIGIN` is also accepted as an alias.
 
 ### Backend Service
 

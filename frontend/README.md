@@ -19,8 +19,8 @@ Local development uses `src/environments/environment.development.ts`:
 apiBaseUrl: 'http://localhost:8080'
 ```
 
-Production builds use `src/environments/environment.ts`. Set `apiBaseUrl` to the Railway API origin before publishing the built Angular files to GitHub Pages.
+Production builds use `src/environments/environment.ts`. Railway runs `scripts/write-environment.mjs` before `npm run build`, so set `API_BASE_URL` to the Railway backend origin in the frontend service variables.
 
-## GitHub Pages
+## Railway
 
-Build output is written to `dist/frontend/browser`. Publish that folder through your preferred GitHub Pages workflow.
+Create a Railway service with root directory `/frontend` and config file `/frontend/railway.toml`. The production server serves `dist/frontend/browser` and falls back to `index.html` for Angular routes.

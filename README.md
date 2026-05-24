@@ -63,3 +63,32 @@ ENV=production
 ```
 
 Railway supplies `PORT` for both services. The frontend exposes `/healthz`, and the backend exposes `/healthz`.
+
+## Mac Desktop Package
+
+The desktop build uses Wails to package the Angular app with a local Go service. It does not use user accounts, sessions, Railway, or Postgres. Saved plans are stored in SQLite at:
+
+```txt
+~/Library/Application Support/Practice Planner/practice-planner.sqlite
+```
+
+One-time prerequisite:
+
+```sh
+go install github.com/wailsapp/wails/v3/cmd/wails3@latest
+```
+
+Build the local `.app` and `.dmg`:
+
+```sh
+./scripts/package-mac.sh
+```
+
+Outputs:
+
+```txt
+dist/mac/Practice Planner.app
+dist/mac/Practice Planner.dmg
+```
+
+The script generates Wails bindings, builds the Angular frontend, runs the desktop Go tests, compiles the app, ad-hoc signs the local app bundle, and creates the DMG. The mounted DMG includes `Practice Planner.app` plus an `Applications` alias so users can drag the app into `/Applications`. For distribution outside your own Mac, sign and notarize with an Apple Developer ID before sharing.

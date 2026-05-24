@@ -18,11 +18,16 @@ type Store interface {
 	CreateUser(ctx context.Context, email string, passwordHash string) (User, error)
 	GetUserByEmail(ctx context.Context, email string) (User, error)
 	GetUserByID(ctx context.Context, id string) (User, error)
+	UpdateUserPassword(ctx context.Context, id string, passwordHash string) error
 
 	CreateSession(ctx context.Context, userID string, tokenHash string, expiresAt time.Time) (Session, error)
 	GetSessionByTokenHash(ctx context.Context, tokenHash string) (Session, error)
 	DeleteSession(ctx context.Context, tokenHash string) error
 	DeleteExpiredSessions(ctx context.Context, now time.Time) error
+
+	CreatePasswordResetToken(ctx context.Context, userID string, tokenHash string, expiresAt time.Time) (PasswordResetToken, error)
+	GetPasswordResetToken(ctx context.Context, tokenHash string) (PasswordResetToken, error)
+	DeletePasswordResetToken(ctx context.Context, tokenHash string) error
 
 	ListPlans(ctx context.Context, userID string) ([]Plan, error)
 	CreatePlan(ctx context.Context, userID string, input PlanInput) (Plan, error)

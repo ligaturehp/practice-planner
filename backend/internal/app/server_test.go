@@ -63,7 +63,8 @@ func TestRegisterMeAndLogoutSessionFlow(t *testing.T) {
 		t.Fatalf("expected normalized email, got %q", body.User.Email)
 	}
 
-	res = performJSON(handler, http.MethodPost, "/api/auth/logout", `{}`, cookie)
+	csrf := fetchCSRFToken(t, handler, cookie)
+	res = performJSONWithHeaders(handler, http.MethodPost, "/api/auth/logout", `{}`, cookie, map[string]string{"X-CSRF-Token": csrf})
 	if res.Code != http.StatusNoContent {
 		t.Fatalf("expected logout 204, got %d: %s", res.Code, res.Body.String())
 	}
@@ -105,12 +106,13 @@ func TestPlansRequireAuthenticationAndValidateInput(t *testing.T) {
 	}
 
 	cookie := registerUser(t, handler, "coach@example.com")
-	res = performJSON(handler, http.MethodPost, "/api/plans", `{"name":"","sport":"football","template":"weekly","plan_json":{}}`, cookie)
+	csrf := fetchCSRFToken(t, handler, cookie)
+	res = performJSONWithHeaders(handler, http.MethodPost, "/api/plans", `{"name":"","sport":"football","template":"weekly","plan_json":{}}`, cookie, map[string]string{"X-CSRF-Token": csrf})
 	if res.Code != http.StatusBadRequest {
 		t.Fatalf("expected missing plan name 400, got %d", res.Code)
 	}
 
-	res = performJSON(handler, http.MethodPost, "/api/plans", `{"name":"Week 1","sport":"football","template":"weekly"}`, cookie)
+	res = performJSONWithHeaders(handler, http.MethodPost, "/api/plans", `{"name":"Week 1","sport":"football","template":"weekly"}`, cookie, map[string]string{"X-CSRF-Token": csrf})
 	if res.Code != http.StatusBadRequest {
 		t.Fatalf("expected missing plan_json 400, got %d", res.Code)
 	}
@@ -121,9 +123,11 @@ func TestPlanOwnershipCRUD(t *testing.T) {
 	handler := newTestHandler(store)
 	coachA := registerUser(t, handler, "a@example.com")
 	coachB := registerUser(t, handler, "b@example.com")
+	csrfA := fetchCSRFToken(t, handler, coachA)
+	csrfB := fetchCSRFToken(t, handler, coachB)
 
 	createBody := `{"name":"Week 1","sport":"football","template":"weekly","plan_json":{"days":[]}}`
-	res := performJSON(handler, http.MethodPost, "/api/plans", createBody, coachA)
+	res := performJSONWithHeaders(handler, http.MethodPost, "/api/plans", createBody, coachA, map[string]string{"X-CSRF-Token": csrfA})
 	if res.Code != http.StatusCreated {
 		t.Fatalf("expected create 201, got %d: %s", res.Code, res.Body.String())
 	}
@@ -139,18 +143,18 @@ func TestPlanOwnershipCRUD(t *testing.T) {
 	}
 
 	updateBody := `{"name":"Stolen","sport":"football","template":"weekly","plan_json":{"days":[1]}}`
-	res = performJSON(handler, http.MethodPut, "/api/plans/"+plan.ID, updateBody, coachB)
+	res = performJSONWithHeaders(handler, http.MethodPut, "/api/plans/"+plan.ID, updateBody, coachB, map[string]string{"X-CSRF-Token": csrfB})
 	if res.Code != http.StatusNotFound {
 		t.Fatalf("expected cross-user update 404, got %d", res.Code)
 	}
 
-	res = performJSON(handler, http.MethodDelete, "/api/plans/"+plan.ID, "", coachB)
+	res = performJSONWithHeaders(handler, http.MethodDelete, "/api/plans/"+plan.ID, "", coachB, map[string]string{"X-CSRF-Token": csrfB})
 	if res.Code != http.StatusNotFound {
 		t.Fatalf("expected cross-user delete 404, got %d", res.Code)
 	}
 
 	updateBody = `{"name":"Week 1 Updated","sport":"rugby","template":"microcycle","plan_json":{"days":[1]}}`
-	res = performJSON(handler, http.MethodPut, "/api/plans/"+plan.ID, updateBody, coachA)
+	res = performJSONWithHeaders(handler, http.MethodPut, "/api/plans/"+plan.ID, updateBody, coachA, map[string]string{"X-CSRF-Token": csrfA})
 	if res.Code != http.StatusOK {
 		t.Fatalf("expected owner update 200, got %d: %s", res.Code, res.Body.String())
 	}
@@ -173,7 +177,7 @@ func TestPlanOwnershipCRUD(t *testing.T) {
 		t.Fatalf("expected other user to have no plans, got %d", len(listBody.Plans))
 	}
 
-	res = performJSON(handler, http.MethodDelete, "/api/plans/"+plan.ID, "", coachA)
+	res = performJSONWithHeaders(handler, http.MethodDelete, "/api/plans/"+plan.ID, "", coachA, map[string]string{"X-CSRF-Token": csrfA})
 	if res.Code != http.StatusNoContent {
 		t.Fatalf("expected owner delete 204, got %d: %s", res.Code, res.Body.String())
 	}
@@ -232,6 +236,78 @@ func TestProductionCookieSupportsCredentialedCrossOriginRequests(t *testing.T) {
 	}
 }
 
+func TestMutatingAuthenticatedRoutesRequireCSRFToken(t *testing.T) {
+	store := NewMemoryStore()
+	handler := newTestHandler(store)
+	cookie := registerUser(t, handler, "csrf@example.com")
+
+	res := performJSON(handler, http.MethodPost, "/api/plans", `{"name":"Week 1","sport":"football","template":"gameFriday","plan_json":{"days":[]}}`, cookie)
+	if res.Code != http.StatusForbidden {
+		t.Fatalf("expected missing CSRF token to return 403, got %d: %s", res.Code, res.Body.String())
+	}
+
+	csrf := fetchCSRFToken(t, handler, cookie)
+	res = performJSONWithHeaders(
+		handler,
+		http.MethodPost,
+		"/api/plans",
+		`{"name":"Week 1","sport":"football","template":"gameFriday","plan_json":{"days":[]}}`,
+		cookie,
+		map[string]string{"X-CSRF-Token": csrf},
+	)
+	if res.Code != http.StatusCreated {
+		t.Fatalf("expected CSRF-authorized create 201, got %d: %s", res.Code, res.Body.String())
+	}
+}
+
+func TestLoginRateLimitRejectsRepeatedFailures(t *testing.T) {
+	store := NewMemoryStore()
+	handler := newTestHandler(store)
+	_ = registerUser(t, handler, "limit@example.com")
+
+	for i := 0; i < 5; i++ {
+		res := performJSON(handler, http.MethodPost, "/api/auth/login", `{"email":"limit@example.com","password":"wrong-password"}`, nil)
+		if res.Code != http.StatusUnauthorized {
+			t.Fatalf("expected bad login %d to return 401, got %d", i+1, res.Code)
+		}
+	}
+
+	res := performJSON(handler, http.MethodPost, "/api/auth/login", `{"email":"limit@example.com","password":"wrong-password"}`, nil)
+	if res.Code != http.StatusTooManyRequests {
+		t.Fatalf("expected repeated bad login to return 429, got %d", res.Code)
+	}
+}
+
+func TestPasswordResetFlowUpdatesPassword(t *testing.T) {
+	store := NewMemoryStore()
+	handler := newTestHandler(store)
+	_ = registerUser(t, handler, "reset@example.com")
+
+	res := performJSON(handler, http.MethodPost, "/api/auth/password-reset/request", `{"email":"reset@example.com"}`, nil)
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected reset request 200 in test env, got %d: %s", res.Code, res.Body.String())
+	}
+	var resetBody struct {
+		ResetToken string `json:"reset_token"`
+	}
+	if err := json.Unmarshal(res.Body.Bytes(), &resetBody); err != nil {
+		t.Fatalf("decode reset response: %v", err)
+	}
+	if resetBody.ResetToken == "" {
+		t.Fatal("expected test reset response to include reset token")
+	}
+
+	res = performJSON(handler, http.MethodPost, "/api/auth/password-reset/complete", `{"token":"`+resetBody.ResetToken+`","password":"new-strong-password"}`, nil)
+	if res.Code != http.StatusNoContent {
+		t.Fatalf("expected reset complete 204, got %d: %s", res.Code, res.Body.String())
+	}
+
+	res = performJSON(handler, http.MethodPost, "/api/auth/login", `{"email":"reset@example.com","password":"new-strong-password"}`, nil)
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected login with reset password 200, got %d: %s", res.Code, res.Body.String())
+	}
+}
+
 func newTestHandler(store Store) http.Handler {
 	cfg := Config{
 		SessionSecret:  "test-session-secret",
@@ -252,6 +328,10 @@ func registerUser(t *testing.T, handler http.Handler, email string) *http.Cookie
 }
 
 func performJSON(handler http.Handler, method string, path string, body string, cookie *http.Cookie) *httptest.ResponseRecorder {
+	return performJSONWithHeaders(handler, method, path, body, cookie, nil)
+}
+
+func performJSONWithHeaders(handler http.Handler, method string, path string, body string, cookie *http.Cookie, headers map[string]string) *httptest.ResponseRecorder {
 	var requestBody *bytes.Reader
 	if body == "" {
 		requestBody = bytes.NewReader(nil)
@@ -265,9 +345,30 @@ func performJSON(handler http.Handler, method string, path string, body string, 
 	if cookie != nil {
 		req.AddCookie(cookie)
 	}
+	for key, value := range headers {
+		req.Header.Set(key, value)
+	}
 	res := httptest.NewRecorder()
 	handler.ServeHTTP(res, req)
 	return res
+}
+
+func fetchCSRFToken(t *testing.T, handler http.Handler, cookie *http.Cookie) string {
+	t.Helper()
+	res := performJSON(handler, http.MethodGet, "/api/auth/csrf", "", cookie)
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected csrf 200, got %d: %s", res.Code, res.Body.String())
+	}
+	var body struct {
+		CSRFToken string `json:"csrf_token"`
+	}
+	if err := json.Unmarshal(res.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode csrf response: %v", err)
+	}
+	if body.CSRFToken == "" {
+		t.Fatal("expected csrf token")
+	}
+	return body.CSRFToken
 }
 
 func findSessionCookie(t *testing.T, res *http.Response) *http.Cookie {

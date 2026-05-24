@@ -8,31 +8,76 @@
       <button class="text-button" type="button" (click)="planner.toggleSavedPlans()">Close</button>
     </div>
 
+    <section class="account-panel" aria-label="Account">
+      @if (planner.auth.status() === 'signed-in' && planner.auth.user(); as user) {
+        <div>
+          <p class="eyebrow">Account</p>
+          <strong>{{ user.email }}</strong>
+          <span>Plans save across devices.</span>
+        </div>
+        <button class="text-button" type="button" (click)="logout()">Sign out</button>
+      } @else {
+        <div>
+          <p class="eyebrow">Guest Draft</p>
+          <strong>Saved in this browser</strong>
+          <span>Sign in to keep plans with your account.</span>
+        </div>
+        <form class="account-form" (ngSubmit)="submitAccount()">
+          <label>
+            <span>Email</span>
+            <input type="email" name="email" [(ngModel)]="email" autocomplete="email" />
+          </label>
+          <label>
+            <span>Password</span>
+            <input
+              type="password"
+              name="password"
+              [(ngModel)]="password"
+              autocomplete="current-password"
+            />
+          </label>
+          <div class="saved-plan-actions">
+            <button class="primary-button" type="submit">
+              {{ authMode === 'register' ? 'Create Account' : 'Sign In' }}
+            </button>
+            <button
+              class="text-button"
+              type="button"
+              (click)="authMode = authMode === 'register' ? 'login' : 'register'"
+            >
+              {{ authMode === 'register' ? 'Use Sign In' : 'Create Account' }}
+            </button>
+          </div>
+          @if (planner.auth.error()) {
+            <p class="block-notes">{{ planner.auth.error() }}</p>
+          }
+        </form>
+      }
+    </section>
+
     <label class="day-focus-field">
       <span>Plan name</span>
       <input type="text" [(ngModel)]="planName" />
     </label>
     <button class="primary-button" type="button" (click)="savePlan()">
-      {{ api.currentUser() ? 'Save To Account' : 'Save Guest Copy' }}
+      Save Plan
     </button>
-    @if (!api.currentUser()) {
-      <button class="text-button wide-button" type="button" (click)="planner.openAuthPanel()">Create Account To Save</button>
-    } @else {
-      <button class="text-button wide-button" type="button" (click)="refreshCloudPlans()">Refresh Account Plans</button>
-    }
     @if (status) {
       <p class="block-notes">{{ status }}</p>
     }
 
     <div class="saved-plan-list">
-      @if (!api.currentUser() && !planner.savedPlans().length) {
-        <p class="block-notes">No guest plans saved in this browser.</p>
-      }
-      @if (api.currentUser() && !api.cloudPlans().length) {
-        <p class="block-notes">No account plans saved yet.</p>
+      @if (!planner.savedPlans().length) {
+        <p class="block-notes">
+          {{
+            planner.auth.status() === 'signed-in'
+              ? 'No account plans saved yet.'
+              : 'No guest drafts saved in this browser.'
+          }}
+        </p>
       }
 
-      @for (plan of api.currentUser() ? api.cloudPlans() : planner.savedPlans(); track plan.id) {
+      @for (plan of planner.savedPlans(); track plan.id) {
         <article class="saved-plan">
           <div>
             <strong>{{ plan.name }}</strong>
@@ -40,11 +85,7 @@
           </div>
           <div class="saved-plan-actions">
             <button class="text-button" type="button" (click)="planner.loadPlan(plan)">Load</button>
-            @if (api.currentUser()) {
-              <button class="remove-block" type="button" (click)="deleteCloudPlan(plan.id)">Delete</button>
-            } @else {
-              <button class="remove-block" type="button" (click)="planner.deletePlan(plan.id)">Delete</button>
-            }
+            <button class="remove-block" type="button" (click)="deletePlan(plan.id)">Delete</button>
           </div>
         </article>
       }

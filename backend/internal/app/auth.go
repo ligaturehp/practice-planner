@@ -16,6 +16,7 @@ import (
 const (
 	sessionCookieName = "practice_planner_session"
 	sessionTTL        = 14 * 24 * time.Hour
+	passwordResetTTL  = 30 * time.Minute
 )
 
 func normalizeEmail(email string) string {
@@ -60,4 +61,8 @@ func hashSessionToken(secret string, token string) (string, error) {
 		return "", err
 	}
 	return hex.EncodeToString(mac.Sum(nil)), nil
+}
+
+func newPasswordResetToken() (string, error) {
+	return newSessionToken()
 }

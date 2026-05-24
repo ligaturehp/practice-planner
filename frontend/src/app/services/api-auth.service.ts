@@ -1,105 +1,90 @@
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Injectable, signal } from '@angular/core';
-import { map, Observable, tap } from 'rxjs';
+import { firstValueFrom } from 'rxjs';
 import { environment } from '../../environments/environment';
-import { ApiPlan, AuthUser, PlannerState, SavedPlan } from '../models/planner.models';
+import { ApiUser } from '../models/planner.models';
 
-interface AuthResponse {
-  user: AuthUser;
-}
-
-interface PlanResponse {
-  plan: ApiPlan;
-}
-
-interface PlansResponse {
-  plans: ApiPlan[];
-}
+type AuthStatus = 'checking' | 'signed-out' | 'signed-in' | 'error';
 
 @Injectable({ providedIn: 'root' })
 export class ApiAuthService {
-  readonly apiBaseUrl = environment.apiBaseUrl;
-  readonly currentUser = signal<AuthUser | null>(null);
-  readonly cloudPlans = signal<SavedPlan[]>([]);
+  readonly user = signal<ApiUser | null>(null);
+  readonly status = signal<AuthStatus>('checking');
+  readonly error = signal('');
 
   constructor(private readonly http: HttpClient) {}
 
-  login(email: string, password: string): Observable<AuthResponse> {
-    return this.http
-      .post<AuthResponse>(`${this.apiBaseUrl}/api/auth/login`, { email, password }, { withCredentials: true })
-      .pipe(tap((response) => this.currentUser.set(response.user)));
+  async bootstrap(): Promise<void> {
+    this.status.set('checking');
+    this.error.set('');
+    try {
+      const response = await firstValueFrom(
+        this.http.get<{ user: ApiUser }>(this.url('/api/auth/me'), { withCredentials: true }),
+      );
+      this.user.set(response.user);
+      this.status.set('signed-in');
+    } catch (error) {
+      if (error instanceof HttpErrorResponse && error.status === 401) {
+        this.user.set(null);
+        this.status.set('signed-out');
+        return;
+      }
+      this.user.set(null);
+      this.status.set('error');
+      this.error.set('Could not check account status.');
+    }
   }
 
-  register(email: string, password: string): Observable<AuthResponse> {
-    return this.http
-      .post<AuthResponse>(`${this.apiBaseUrl}/api/auth/register`, { email, password }, { withCredentials: true })
-      .pipe(tap((response) => this.currentUser.set(response.user)));
+  async register(email: string, password: string): Promise<void> {
+    await this.authenticate('/api/auth/register', email, password);
   }
 
-  me(): Observable<AuthResponse> {
-    return this.http.get<AuthResponse>(`${this.apiBaseUrl}/api/auth/me`, { withCredentials: true }).pipe(tap((response) => this.currentUser.set(response.user)));
+  async login(email: string, password: string): Promise<void> {
+    await this.authenticate('/api/auth/login', email, password);
   }
 
-  logout(): Observable<void> {
-    return this.http.post<void>(`${this.apiBaseUrl}/api/auth/logout`, {}, { withCredentials: true }).pipe(
-      tap(() => {
-        this.currentUser.set(null);
-        this.cloudPlans.set([]);
+  async logout(): Promise<void> {
+    this.error.set('');
+    const csrfToken = await this.csrfToken();
+    await firstValueFrom(
+      this.http.post(this.url('/api/auth/logout'), {}, {
+        headers: { 'X-CSRF-Token': csrfToken },
+        withCredentials: true,
       }),
     );
+    this.user.set(null);
+    this.status.set('signed-out');
   }
 
-  listPlans(): Observable<SavedPlan[]> {
-    return this.http.get<PlansResponse>(`${this.apiBaseUrl}/api/plans`, { withCredentials: true }).pipe(
-      map((response) => response.plans.map((plan) => this.fromApiPlan(plan))),
-      tap((plans) => this.cloudPlans.set(plans)),
+  async csrfToken(): Promise<string> {
+    const response = await firstValueFrom(
+      this.http.get<{ csrf_token: string }>(this.url('/api/auth/csrf'), { withCredentials: true }),
     );
+    return response.csrf_token;
   }
 
-  createPlan(name: string, state: PlannerState): Observable<SavedPlan> {
-    return this.http
-      .post<PlanResponse>(`${this.apiBaseUrl}/api/plans`, this.toPlanInput(name, state), { withCredentials: true })
-      .pipe(map((response) => this.fromApiPlan(response.plan)));
+  private async authenticate(path: string, email: string, password: string): Promise<void> {
+    this.status.set('checking');
+    this.error.set('');
+    try {
+      const response = await firstValueFrom(
+        this.http.post<{ user: ApiUser }>(
+          this.url(path),
+          { email, password },
+          { withCredentials: true },
+        ),
+      );
+      this.user.set(response.user);
+      this.status.set('signed-in');
+    } catch {
+      this.user.set(null);
+      this.status.set('signed-out');
+      this.error.set('Check the email and password, then try again.');
+      throw new Error('authentication failed');
+    }
   }
 
-  updatePlan(planId: string, name: string, state: PlannerState): Observable<SavedPlan> {
-    return this.http
-      .put<PlanResponse>(`${this.apiBaseUrl}/api/plans/${planId}`, this.toPlanInput(name, state), { withCredentials: true })
-      .pipe(map((response) => this.fromApiPlan(response.plan)));
-  }
-
-  deletePlan(planId: string): Observable<void> {
-    return this.http.delete<void>(`${this.apiBaseUrl}/api/plans/${planId}`, { withCredentials: true }).pipe(
-      tap(() => {
-        this.cloudPlans.update((plans) => plans.filter((plan) => plan.id !== planId));
-      }),
-    );
-  }
-
-  private toPlanInput(name: string, state: PlannerState): { name: string; sport: string; template: string; plan_json: PlannerState } {
-    return {
-      name,
-      sport: state.sport,
-      template: state.template,
-      plan_json: this.stripTransientState(state),
-    };
-  }
-
-  private fromApiPlan(plan: ApiPlan): SavedPlan {
-    return {
-      id: plan.id,
-      name: plan.name,
-      updatedAt: plan.updated_at,
-      state: this.stripTransientState(plan.plan_json),
-    };
-  }
-
-  private stripTransientState(state: PlannerState): PlannerState {
-    return {
-      ...structuredClone(state),
-      blockDialogOpen: false,
-      authPanelOpen: false,
-      savedPlansOpen: false,
-    };
+  private url(path: string): string {
+    return `${environment.apiBaseUrl}${path}`;
   }
 }

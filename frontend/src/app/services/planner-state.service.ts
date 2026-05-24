@@ -1,14 +1,15 @@
 import { computed, Injectable, signal } from '@angular/core';
 import { createGrid, createId, createInitialState, rowLabelsForSport } from '../data/planner-defaults';
-import { DayId, SavedPlan, Sport, TemplateId, TrainingBlock } from '../models/planner.models';
+import { BlockLabelPreset, DayId, SavedPlan, Sport, TemplateId, TrainingBlock } from '../models/planner.models';
+import { DesktopPlanStorageService } from './desktop-plan-storage.service';
+import { ApiAuthService } from './api-auth.service';
+import { ApiPlanStorageService } from './api-plan-storage.service';
 import { PlannerCalculationsService } from './planner-calculations.service';
-
-const SAVED_PLANS_KEY = 'practice-planner.saved-plans';
 
 @Injectable({ providedIn: 'root' })
 export class PlannerStateService {
   readonly state = signal(createInitialState());
-  readonly savedPlans = signal<SavedPlan[]>(this.loadSavedPlans());
+  readonly savedPlans = signal<SavedPlan[]>([]);
 
   readonly dayLevels = computed(() => this.calculations.getDayLevels(this.state()));
   readonly blockCellAuLevels = computed(() => this.calculations.getBlockCellAuLevels(this.state()));
@@ -41,7 +42,14 @@ export class PlannerStateService {
     };
   });
 
-  constructor(private readonly calculations: PlannerCalculationsService) {}
+  constructor(
+    private readonly calculations: PlannerCalculationsService,
+    private readonly storage: DesktopPlanStorageService,
+    private readonly apiStorage: ApiPlanStorageService,
+    readonly auth: ApiAuthService,
+  ) {
+    void this.bootstrapAccount();
+  }
 
   selectDay(dayId: DayId): void {
     this.state.update((state) => ({ ...state, selectedDay: dayId }));
@@ -112,54 +120,97 @@ export class PlannerStateService {
     this.state.update((state) => ({ ...state, blockDialogOpen: false }));
   }
 
-  openAuthPanel(): void {
-    this.state.update((state) => ({ ...state, authPanelOpen: true }));
+  toggleLabelConfig(): void {
+    this.state.update((state) => ({ ...state, labelConfigOpen: !state.labelConfigOpen }));
   }
 
-  closeAuthPanel(): void {
-    this.state.update((state) => ({ ...state, authPanelOpen: false }));
+  upsertBlockLabelPreset(input: Omit<BlockLabelPreset, 'id'> & { id?: string }): BlockLabelPreset {
+    const preset: BlockLabelPreset = {
+      ...input,
+      id: input.id || createId('preset'),
+      label: input.label.trim() || 'Untitled label',
+      tags: [...input.tags],
+      exposures: [...input.exposures],
+    };
+
+    this.state.update((state) => {
+      const exists = state.blockLabelPresets.some((item) => item.id === preset.id);
+      return {
+        ...state,
+        blockLabelPresets: exists
+          ? state.blockLabelPresets.map((item) => (item.id === preset.id ? preset : item))
+          : [...state.blockLabelPresets, preset],
+      };
+    });
+
+    return preset;
+  }
+
+  removeBlockLabelPreset(presetId: string): void {
+    this.state.update((state) => ({
+      ...state,
+      blockLabelPresets: state.blockLabelPresets.filter((preset) => preset.id !== presetId),
+    }));
   }
 
   toggleSavedPlans(): void {
     this.state.update((state) => ({ ...state, savedPlansOpen: !state.savedPlansOpen }));
   }
 
-  saveLocalPlan(name = 'Guest plan'): void {
-    const plan: SavedPlan = {
-      id: createId('plan'),
-      name,
-      updatedAt: new Date().toISOString(),
-      state: structuredClone(this.state()),
-    };
+  async refreshSavedPlans(): Promise<void> {
+    this.savedPlans.set(await this.activeStorage().listPlans());
+  }
+
+  async savePlan(name = 'Weekly plan'): Promise<SavedPlan> {
+    const plan = await this.activeStorage().savePlan(name, this.state());
     const plans = [plan, ...this.savedPlans()].slice(0, 12);
     this.savedPlans.set(plans);
-    this.persistSavedPlans(plans);
+    return plan;
   }
 
   loadPlan(plan: SavedPlan): void {
-    this.state.set(structuredClone({ ...plan.state, blockDialogOpen: false, authPanelOpen: false }));
+    const loaded = structuredClone(plan.state);
+    this.state.set({
+      ...loaded,
+      blockLabelPresets: loaded.blockLabelPresets || createInitialState().blockLabelPresets,
+      blockDialogOpen: false,
+      labelConfigOpen: false,
+      savedPlansOpen: false,
+    });
   }
 
-  deletePlan(planId: string): void {
+  async deletePlan(planId: string): Promise<void> {
+    await this.activeStorage().deletePlan(planId);
     const plans = this.savedPlans().filter((plan) => plan.id !== planId);
     this.savedPlans.set(plans);
-    this.persistSavedPlans(plans);
   }
 
   print(): void {
     window.print();
   }
 
-  private loadSavedPlans(): SavedPlan[] {
-    try {
-      const raw = localStorage.getItem(SAVED_PLANS_KEY);
-      return raw ? (JSON.parse(raw) as SavedPlan[]) : [];
-    } catch {
-      return [];
-    }
+  async bootstrapAccount(): Promise<void> {
+    await this.auth.bootstrap();
+    await this.refreshSavedPlans();
   }
 
-  private persistSavedPlans(plans: SavedPlan[]): void {
-    localStorage.setItem(SAVED_PLANS_KEY, JSON.stringify(plans));
+  async login(email: string, password: string): Promise<void> {
+    await this.auth.login(email, password);
+    await this.refreshSavedPlans();
   }
+
+  async register(email: string, password: string): Promise<void> {
+    await this.auth.register(email, password);
+    await this.refreshSavedPlans();
+  }
+
+  async logout(): Promise<void> {
+    await this.auth.logout();
+    await this.refreshSavedPlans();
+  }
+
+  private activeStorage(): Pick<DesktopPlanStorageService, 'listPlans' | 'savePlan' | 'deletePlan'> {
+    return this.auth.status() === 'signed-in' ? this.apiStorage : this.storage;
+  }
+
 }

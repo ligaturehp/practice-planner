@@ -23,6 +23,18 @@ export interface TrainingBlock {
   notes: string;
 }
 
+export interface BlockLabelPreset {
+  id: string;
+  label: string;
+  category: string;
+  level: WorkloadLabel;
+  minutes: number;
+  demand: number;
+  tags: string[];
+  exposures: string[];
+  notes: string;
+}
+
 export type DemandGrid = Record<DayId, string[]>;
 export type BlockMap = Record<DayId, TrainingBlock[]>;
 
@@ -34,8 +46,9 @@ export interface PlannerState {
   rowLabels: string[];
   grid: DemandGrid;
   blocks: BlockMap;
+  blockLabelPresets: BlockLabelPreset[];
   blockDialogOpen: boolean;
-  authPanelOpen: boolean;
+  labelConfigOpen: boolean;
   savedPlansOpen: boolean;
 }
 
@@ -60,9 +73,10 @@ export interface SavedPlan {
   state: PlannerState;
 }
 
-export interface AuthUser {
+export interface ApiUser {
   id: string;
   email: string;
+  created_at: string;
 }
 
 export interface ApiPlan {

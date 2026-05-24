@@ -15,9 +15,31 @@
 
       <form class="block-form" (ngSubmit)="addBlock()">
         <label>
-          <span>Block name</span>
-          <input name="blockName" type="text" [(ngModel)]="name" required />
+          <span>Block label</span>
+          <input
+            name="blockName"
+            type="text"
+            [ngModel]="name"
+            (ngModelChange)="onNameChange($event)"
+            list="blockLabelOptions"
+            placeholder="Choose a label or type your own"
+            required
+          />
+          <datalist id="blockLabelOptions">
+            @for (preset of planner.state().blockLabelPresets; track preset.id) {
+              <option [value]="preset.label"></option>
+            }
+          </datalist>
         </label>
+
+        <div class="preset-picker" aria-label="Quick block labels">
+          @for (preset of planner.state().blockLabelPresets; track preset.id) {
+            <button type="button" (click)="applyPreset(preset)">
+              <span>{{ preset.label }}</span>
+              <strong>{{ preset.level }} | {{ preset.minutes * preset.demand }} AU</strong>
+            </button>
+          }
+        </div>
 
         <div class="form-row">
           <label>

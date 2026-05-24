@@ -137,6 +137,17 @@ func (s *PostgresStore) GetUserByID(ctx context.Context, id string) (User, error
 	return user, err
 }
 
+func (s *PostgresStore) UpdateUserPassword(ctx context.Context, id string, passwordHash string) error {
+	tag, err := s.pool.Exec(ctx, `UPDATE users SET password_hash = $2 WHERE id = $1`, id, passwordHash)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
 func (s *PostgresStore) CreateSession(ctx context.Context, userID string, tokenHash string, expiresAt time.Time) (Session, error) {
 	var session Session
 	err := s.pool.QueryRow(ctx, `
@@ -167,6 +178,34 @@ func (s *PostgresStore) DeleteSession(ctx context.Context, tokenHash string) err
 
 func (s *PostgresStore) DeleteExpiredSessions(ctx context.Context, now time.Time) error {
 	_, err := s.pool.Exec(ctx, `DELETE FROM sessions WHERE expires_at <= $1`, now)
+	return err
+}
+
+func (s *PostgresStore) CreatePasswordResetToken(ctx context.Context, userID string, tokenHash string, expiresAt time.Time) (PasswordResetToken, error) {
+	var reset PasswordResetToken
+	err := s.pool.QueryRow(ctx, `
+		INSERT INTO password_reset_tokens (user_id, token_hash, expires_at)
+		VALUES ($1, $2, $3)
+		RETURNING id::text, user_id::text, token_hash, expires_at, created_at
+	`, userID, tokenHash, expiresAt).Scan(&reset.ID, &reset.UserID, &reset.TokenHash, &reset.ExpiresAt, &reset.CreatedAt)
+	return reset, err
+}
+
+func (s *PostgresStore) GetPasswordResetToken(ctx context.Context, tokenHash string) (PasswordResetToken, error) {
+	var reset PasswordResetToken
+	err := s.pool.QueryRow(ctx, `
+		SELECT id::text, user_id::text, token_hash, expires_at, created_at
+		FROM password_reset_tokens
+		WHERE token_hash = $1
+	`, tokenHash).Scan(&reset.ID, &reset.UserID, &reset.TokenHash, &reset.ExpiresAt, &reset.CreatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return PasswordResetToken{}, ErrNotFound
+	}
+	return reset, err
+}
+
+func (s *PostgresStore) DeletePasswordResetToken(ctx context.Context, tokenHash string) error {
+	_, err := s.pool.Exec(ctx, `DELETE FROM password_reset_tokens WHERE token_hash = $1`, tokenHash)
 	return err
 }
 

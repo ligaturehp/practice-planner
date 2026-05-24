@@ -30,8 +30,54 @@ describe('PlannerCalculationsService', () => {
     expect(service.getDayAu(state, 'fri')).toBe(0);
   });
 
+  it('starts a new plan without assigned training blocks', () => {
+    const state = createInitialState();
+
+    expect(Object.values(state.blocks).flat()).toEqual([]);
+    expect(state.blockLabelPresets.length).toBeGreaterThan(0);
+  });
+
   it('prioritizes coach-entered block AU over keyword-only day load', () => {
     const state = createInitialState();
+    state.blocks.mon = [
+      {
+        id: 'strength',
+        name: 'Lower-body strength emphasis',
+        category: 'Strength',
+        level: 'Medium',
+        minutes: 40,
+        demand: 7,
+        tags: [],
+        exposures: [],
+        notes: '',
+      },
+    ];
+    state.blocks.tue = [
+      {
+        id: 'contact',
+        name: 'Full-contact competitive period',
+        category: 'Contact',
+        level: 'High',
+        minutes: 28,
+        demand: 9,
+        tags: [],
+        exposures: [],
+        notes: '',
+      },
+    ];
+    state.blocks.thu = [
+      {
+        id: 'speed',
+        name: 'Short max speed exposure',
+        category: 'Speed',
+        level: 'Medium',
+        minutes: 18,
+        demand: 8,
+        tags: [],
+        exposures: [],
+        notes: '',
+      },
+    ];
     const levels = service.getDayLevels(state);
 
     expect(service.getDayAu(state, 'mon')).toBe(280);
@@ -42,6 +88,45 @@ describe('PlannerCalculationsService', () => {
 
   it('colors block-bearing grid cells from block AU totals', () => {
     const state = createInitialState();
+    state.blocks.mon = [
+      {
+        id: 'strength',
+        name: 'Lower-body strength emphasis',
+        category: 'Strength',
+        level: 'Medium',
+        minutes: 40,
+        demand: 7,
+        tags: [],
+        exposures: [],
+        notes: '',
+      },
+    ];
+    state.blocks.tue = [
+      {
+        id: 'contact',
+        name: 'Full-contact competitive period',
+        category: 'Contact',
+        level: 'High',
+        minutes: 28,
+        demand: 9,
+        tags: [],
+        exposures: [],
+        notes: '',
+      },
+    ];
+    state.blocks.thu = [
+      {
+        id: 'speed',
+        name: 'Short max speed exposure',
+        category: 'Speed',
+        level: 'Medium',
+        minutes: 18,
+        demand: 8,
+        tags: [],
+        exposures: [],
+        notes: '',
+      },
+    ];
     const levels = service.getBlockCellAuLevels(state);
 
     expect(levels['mon:S&C emphasis']).toBe('high');
@@ -51,6 +136,19 @@ describe('PlannerCalculationsService', () => {
 
   it('summarizes stacked exposure flags across the week', () => {
     const state = createInitialState();
+    state.blocks.mon = [
+      {
+        id: 'speed-primer',
+        name: 'Speed primer',
+        category: 'Speed',
+        level: 'Low',
+        minutes: 12,
+        demand: 5,
+        tags: [],
+        exposures: ['Max sprint count'],
+        notes: '',
+      },
+    ];
     state.blocks.wed = [
       {
         id: 'duplicate-speed',

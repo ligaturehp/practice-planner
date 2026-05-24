@@ -1,7 +1,6 @@
 import { DatePipe } from '@angular/common';
-import { ChangeDetectionStrategy, Component, effect, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { ApiAuthService } from '../../services/api-auth.service';
 import { PlannerStateService } from '../../services/planner-state.service';
 
 @Component({
@@ -12,58 +11,38 @@ import { PlannerStateService } from '../../services/planner-state.service';
 })
 export class SavedPlansDrawerComponent {
   readonly planner = inject(PlannerStateService);
-  readonly api = inject(ApiAuthService);
-  planName = 'Guest weekly plan';
+  planName = 'Weekly plan';
   status = '';
+  email = '';
+  password = '';
+  authMode: 'login' | 'register' = 'login';
 
-  constructor() {
-    effect(() => {
-      if (this.api.currentUser()) {
-        this.refreshCloudPlans();
-      }
-    });
-  }
-
-  savePlan(): void {
+  async savePlan(): Promise<void> {
     const name = this.planName.trim() || 'Untitled weekly plan';
-    const state = this.planner.state();
+    await this.planner.savePlan(name);
+    this.status = this.planner.auth.status() === 'signed-in' ? 'Plan saved to your account.' : 'Guest draft saved in this browser.';
+  }
 
-    if (!this.api.currentUser()) {
-      this.planner.saveLocalPlan(name);
-      this.status = 'Saved in this browser. Create an account to keep plans across devices.';
-      return;
+  async deletePlan(planId: string): Promise<void> {
+    await this.planner.deletePlan(planId);
+    this.status = 'Plan deleted.';
+  }
+
+  async submitAccount(): Promise<void> {
+    const email = this.email.trim();
+    const password = this.password;
+    if (this.authMode === 'register') {
+      await this.planner.register(email, password);
+      this.status = 'Account created. Plans now save to your account.';
+    } else {
+      await this.planner.login(email, password);
+      this.status = 'Signed in. Account plans loaded.';
     }
-
-    this.api.createPlan(name, state).subscribe({
-      next: (plan) => {
-        this.api.cloudPlans.update((plans) => [plan, ...plans.filter((item) => item.id !== plan.id)]);
-        this.status = 'Plan saved to your account.';
-      },
-      error: () => {
-        this.status = 'Cloud save failed. Check the API connection or try again.';
-      },
-    });
+    this.password = '';
   }
 
-  refreshCloudPlans(): void {
-    this.api.listPlans().subscribe({
-      next: () => {
-        this.status = '';
-      },
-      error: () => {
-        this.status = 'Could not load account plans.';
-      },
-    });
-  }
-
-  deleteCloudPlan(planId: string): void {
-    this.api.deletePlan(planId).subscribe({
-      next: () => {
-        this.status = 'Plan deleted.';
-      },
-      error: () => {
-        this.status = 'Could not delete that plan.';
-      },
-    });
+  async logout(): Promise<void> {
+    await this.planner.logout();
+    this.status = 'Signed out. Guest drafts are saved in this browser.';
   }
 }

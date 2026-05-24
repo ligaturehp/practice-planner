@@ -218,6 +218,115 @@ Build a static first-pass UI that focuses on a 30,000-foot weekly demand map for
 - [x] Update deployment docs for two Railway services and required variables.
 - [x] Verify frontend build/start and backend build/tests after config changes.
 
+## Web Application Production Planning Sprint
+
+### Sprint Scope
+
+Assess what must be true for Practice Planner to move from a desktop-first/planner prototype into a stable, maintainable web application for coaches. Cover system architecture, hosting and operations, security, database design, user accounts, billing/email hooks, UX, and product features. Produce a prioritized production roadmap rather than making implementation changes in this pass.
+
+### Plan
+
+- [x] Inventory the current app structure, deployment notes, and test coverage.
+- [x] Run parallel specialist reviews for security, database/backend design, UX/product workflow, and web operations.
+- [x] Synthesize findings into a production-readiness assessment with clear go/no-go risks.
+- [x] Define the target web architecture and phased roadmap.
+- [x] Estimate Railway hosting costs, bandwidth assumptions, and subscription margin at $5-$10 per month.
+- [x] Record verification steps and sprint results in this task log.
+
+### Review
+
+- Railway hosting estimate added at `docs/railway-hosting-cost-estimate.md`.
+- Estimate uses the current documented web architecture: Railway Angular frontend service, Go backend service, and Railway PostgreSQL.
+- Current frontend production build was checked at about 312 KB, making idle memory and database footprint the likely early cost drivers rather than bandwidth.
+- Railway pricing was refreshed on 2026-05-24 from official Railway docs: Hobby $5/month with $5 included usage, Pro $20/month with $20 included usage, RAM $10/GB-month, CPU $20/vCPU-month, network egress $0.05/GB, and volume storage $0.15/GB-month.
+- Rough conclusion: normal coach-planner traffic should stay near the Hobby floor through early validation. Hosting-only gross margin remains high at both $5/month and $10/month unless the product adds large files, media, PDF-heavy workflows, or duplicate always-on environments.
+- Created `tasks/web-application-production-plan.md` as the durable production planning artifact.
+- Go/no-go judgment: go for private alpha with constraints; no-go for broad public launch or paid accounts until security, account recovery, backup, CI, and web account wiring gaps are closed.
+- Security review found the strongest launch blockers: cross-site cookie auth without CSRF, no login/register rate limiting, arbitrary planner JSON validation, incomplete production timeouts, production CORS fallback risk, and missing hardening headers.
+- Database/backend review found the main architecture blockers: user-owned plans instead of team/workspace ownership, opaque unversioned `plan_json`, no version history, no sharing/template model, minimal audit trail, and no export/import story.
+- UX/product review found the strongest workflow blockers: active Angular save/load is still desktop/local-first, collaboration is absent, first-use onboarding is thin, mobile/tablet needs a day-first mode, and PDF/export needs a dedicated report view.
+- Operations review found missing production guardrails: placeholder API URL can survive production build, no repo-level CI gate, no password reset/email routing/support flows, minimal observability, no backup/restore runbook, and billing hooks are absent.
+- Verification reported by specialist reviewers: `go test ./...` passed in `backend/`; root Go tests passed with macOS linker warnings; frontend tests passed with `npm test -- --watch=false`.
+
+## Web Production Buildout Plan
+
+### Scope
+
+Implement phases 1-7 from `tasks/web-application-production-plan.md` in order, leaving billing out of scope. Use a test-first workflow for each phase, then build, run the full relevant test suite, and verify added user-facing behavior in the browser before moving to the next phase.
+
+### Phase Gates
+
+- [x] Phase 1: Production guardrails: env validation, CI, server timeouts, security headers.
+- [x] Phase 2: Web account wiring: Angular auth/API service, account states, credentialed save/load.
+- [x] Phase 3: Auth safety: CSRF, rate limits, password reset.
+- [ ] Phase 4: Planner data safety: server-side plan validation, autosave, optimistic locking.
+- [ ] Phase 5: Versioning: `plan_versions`, restore, duplicate week.
+- [ ] Phase 6: Team model: organizations, memberships, roles.
+- [ ] Phase 7: Sharing and reporting: share links, dedicated PDF/CSV exports.
+
+### Phase 1 Tasks
+
+- [x] Write failing backend tests for production config validation and HTTP timeout configuration.
+- [x] Write failing frontend/server tests for required production API base URL and static hardening headers.
+- [x] Implement backend production config guardrails and complete server timeout settings.
+- [x] Implement frontend production env guardrail and static response hardening headers.
+- [x] Add repo-level CI for frontend and backend checks.
+- [x] Run backend tests, frontend tests, production builds, and browser smoke verification.
+
+### Phase 1 Review
+
+- Added backend config tests for production-only `ALLOWED_ORIGINS` requirements, HTTPS origins, wildcard rejection, localhost rejection, and minimum production `SESSION_SECRET` length.
+- Extracted backend HTTP server construction into `newHTTPServer()` and added read, write, idle, and read-header timeouts.
+- Added frontend Node tests for production API URL generation and static server hardening headers.
+- Exported `writeEnvironment()` and `createFrontendServer()` to make guardrails testable.
+- Production frontend builds now run the environment writer before Angular build, so missing/placeholder API origins fail before deployment.
+- Added `.github/workflows/ci.yml` with frontend Node tests, Angular tests, frontend build, and backend Go tests.
+- Verification passed: `go test ./...` in `backend/`; `npm run test:node`; `npm test -- --watch=false`; `API_BASE_URL=https://api.example.com npm run build`.
+- Browser verification passed at `http://127.0.0.1:4301/`: app rendered `Weekly Demand Map`, no console errors were reported, `/healthz` returned `{ "status": "ok" }`, and static responses included `X-Content-Type-Options`, `Referrer-Policy`, `X-Frame-Options`, and `Content-Security-Policy`.
+- Browser screenshot saved at `frontend/__screenshots__/phase-1-guardrails.png`.
+
+### Phase 2 Tasks
+
+- [x] Write failing frontend tests for web auth/account state and credentialed plan API calls.
+- [x] Write failing browser-facing tests or service tests for signed-in save/load/delete behavior.
+- [x] Implement Angular auth/API services for register, login, logout, session bootstrap, and plan CRUD.
+- [x] Split web API storage from desktop/local fallback while keeping guest/local draft mode explicit.
+- [x] Update account and saved-plan UI states for signed out, signed in, loading, save failed, saved, and guest draft.
+- [x] Run frontend tests, backend tests, build, and browser account-flow verification before Phase 3.
+
+### Phase 2 Review
+
+- Added `ApiAuthService` for session bootstrap, register, login, logout, account status, and credentialed auth requests.
+- Added `ApiPlanStorageService` for credentialed account plan list/save/delete calls.
+- Updated planner state to use account API storage when signed in and guest/local storage when signed out.
+- Updated the saved-plans drawer with explicit guest draft and signed-in account states.
+- Added a development-only `DATABASE_URL=memory` backend mode for repeatable browser verification without local Postgres.
+- Fixed the static CSP to allow local API targets for browser verification.
+- Verification passed: `go test ./...` in `backend/`; `npm run test:node`; `npm test -- --watch=false`; `API_BASE_URL=http://127.0.0.1:8081 npm run build`.
+- Browser verification passed with backend memory API at `http://127.0.0.1:8081` and frontend at `http://127.0.0.1:4302`: create account, show account state, save account plan, delete account plan, and sign out to guest draft mode.
+- Browser screenshot saved at `frontend/__screenshots__/phase-2-account-flow.png`.
+
+### Phase 3 Tasks
+
+- [x] Write failing backend tests for CSRF token issuance and enforcement on mutating cookie-authenticated routes.
+- [x] Write failing backend tests for login/register rate limiting.
+- [x] Write failing backend tests for password reset request and completion.
+- [x] Implement CSRF tokens and frontend header support.
+- [x] Implement auth rate limiting.
+- [x] Implement password reset storage/routes with development-safe reset behavior.
+- [x] Run backend tests, frontend tests, build, and browser auth-safety verification before Phase 4.
+
+### Phase 3 Review
+
+- Added `GET /api/auth/csrf` and required `X-CSRF-Token` on authenticated mutating routes.
+- Updated frontend account logout and plan save/delete calls to fetch and send CSRF tokens.
+- Added in-memory auth rate limiting for login/register attempts.
+- Added password reset token storage, Postgres migration, request route, and completion route. Development/test responses include the reset token; production returns no token body so a mailer can be added later.
+- Updated CORS to allow `X-CSRF-Token` preflight headers.
+- Verification passed: `go test ./...` in `backend/`; `npm run test:node`; `npm test -- --watch=false`; `API_BASE_URL=http://127.0.0.1:8081 npm run build`.
+- Browser verification passed with CSRF-protected account save, password reset request returning a development reset token, and a saved account plan visible in the drawer.
+- Browser screenshot saved at `frontend/__screenshots__/phase-3-auth-safety.png`.
+
 ## Railway Two-Service Deployment Review
 
 - Added `frontend/railway.toml` for the Angular service with Railpack, build command, start command, health check, restart policy, and watch patterns.
@@ -243,3 +352,62 @@ Build a static first-pass UI that focuses on a 30,000-foot weekly demand map for
 - Added those packages as explicit frontend dev dependencies so `npm ci` has stable lockfile entries on Railway.
 - `rm -rf node_modules && npm ci && node scripts/write-environment.mjs && npm run build` passed in `frontend/`.
 - `npm test -- --watch=false` passed in `frontend/`: 2 test files, 8 tests.
+
+## Mac Desktop Packaging Plan
+
+- [x] Add a Wails desktop shell that embeds the existing Angular production build.
+- [x] Add a local SQLite plan store provisioned on first launch under macOS Application Support.
+- [x] Replace the desktop save/load/delete path with Wails bindings and remove account-dependent UI from the packaged app.
+- [x] Add DMG packaging documentation and scripts for the simplest repeatable local build.
+- [x] Verify frontend tests/build, Go tests/build, Wails package build, and SQLite persistence behavior.
+
+## Mac Desktop Packaging Review
+
+- Added a root Wails desktop app around the existing Angular frontend, with generated TypeScript bindings under `frontend/bindings/`.
+- Added a local SQLite-backed `PlanService` that provisions `~/Library/Application Support/Practice Planner/practice-planner.sqlite` on first launch and stores saved plans as JSON.
+- Removed the active account/login UI from the Angular shell; `Plans` now saves, lists, loads, and deletes plans locally on the Mac.
+- Added `scripts/package-mac.sh` and README instructions for building `dist/mac/Practice Planner.app` and `dist/mac/Practice Planner.dmg`.
+- `npm test -- --watch=false` passed in `frontend/`: 2 test files, 8 tests.
+- `npm run build` passed in `frontend/`.
+- `go test ./...` passed for the root desktop module; the new SQLite test verified DB provisioning, save, list, and delete.
+- `go test ./...` passed in `backend/`, preserving the existing Railway API tests.
+- `./scripts/package-mac.sh` passed and created `dist/mac/Practice Planner.app` plus `dist/mac/Practice Planner.dmg`.
+- `codesign --verify --deep --strict --verbose=2 "dist/mac/Practice Planner.app"` passed.
+- `hdiutil verify "dist/mac/Practice Planner.dmg"` passed.
+- DMG mount verification passed: the mounted volume contained `Practice Planner.app`.
+- Native launch smoke test passed: the packaged app started, then quit cleanly through AppleScript.
+- First-launch SQLite provisioning was confirmed at `~/Library/Application Support/Practice Planner/practice-planner.sqlite`, with the expected `plans` table and index.
+- Distribution note: the local app bundle is ad-hoc signed for local testing. Sharing outside this Mac still needs Developer ID signing and notarization.
+
+## Blank Plan And Label Library Plan
+
+- [x] Start new plans with no assigned training blocks while keeping the weekly demand grid template intact.
+- [x] Add a reusable block-label preset library with intended category, level, minutes, and demand score.
+- [x] Let coaches select a preset quickly in the block dialog while still allowing typed custom labels.
+- [x] Add a compact label configuration tool for creating, editing, and removing presets.
+- [x] Verify calculations, UI behavior, frontend build/tests, desktop Go tests, and DMG packaging after the change.
+
+## Blank Plan And Label Library Review
+
+- New plans now start with zero assigned training blocks and zero planned AU; the weekly demand grid template remains available for planning context.
+- Added saved-plan state for `blockLabelPresets`, including label, category, intended level, minutes, demand score, tags, exposures, and notes.
+- Added a block label datalist and quick-pick preset buttons in the Add Training Block dialog; coaches can still type a custom label.
+- Added a compact Label Library panel in the day inspector for adding, editing, and removing preset labels and their intended load.
+- Browser verification passed at `http://127.0.0.1:4201/`: initial total planned AU was 0, the selected day showed no blocks, selecting `Full-contact competitive period` filled category/contact/load fields, adding it updated total AU to 252, and adding `Red-zone competition` to the label library produced a 128 AU high-load preset.
+- `npm test -- --watch=false` passed in `frontend/`: 2 test files, 9 tests.
+- `npm run build` passed in `frontend/`.
+- `go test ./...` passed for the root desktop module.
+- `go test ./...` passed in `backend/`.
+- `./scripts/package-mac.sh` passed and rebuilt `dist/mac/Practice Planner.app` plus `dist/mac/Practice Planner.dmg`.
+- `codesign --verify --deep --strict --verbose=2 "dist/mac/Practice Planner.app"` passed.
+- `hdiutil verify "dist/mac/Practice Planner.dmg"` passed.
+- Native launch smoke test confirmed the rebuilt packaged app starts; an existing `/Applications/Practice Planner.app` process was already present after the smoke test.
+
+## DMG Applications Alias Review
+
+- Updated `scripts/package-mac.sh` to build the DMG from `dist/mac/dmg-staging/`.
+- The staging folder now contains `Practice Planner.app` and an `Applications -> /Applications` symlink.
+- Rebuilt `dist/mac/Practice Planner.dmg` successfully.
+- `codesign --verify --deep --strict --verbose=2 "dist/mac/Practice Planner.app"` passed.
+- `hdiutil verify "dist/mac/Practice Planner.dmg"` passed.
+- Mounted DMG verification passed: `/Volumes/Practice Planner` contains both `Practice Planner.app` and `Applications -> /Applications`.

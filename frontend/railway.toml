@@ -1,6 +1,6 @@
 [build]
 builder = "RAILPACK"
-buildCommand = "npm ci && node scripts/write-environment.mjs && npm run build"
+buildCommand = "npm ci && npm run build"
 watchPatterns = ["src/**", "public/**", "scripts/**", "package.json", "package-lock.json", "angular.json", "server.mjs", "railway.toml"]
 
 [deploy]

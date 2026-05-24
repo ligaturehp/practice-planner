@@ -2,7 +2,7 @@ import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { EXPOSURE_OPTIONS } from '../../data/planner-defaults';
-import { WorkloadLabel } from '../../models/planner.models';
+import { BlockLabelPreset, WorkloadLabel } from '../../models/planner.models';
 import { PlannerStateService } from '../../services/planner-state.service';
 
 @Component({
@@ -15,14 +15,34 @@ export class BlockDialogComponent {
   readonly planner = inject(PlannerStateService);
   readonly exposureOptions = EXPOSURE_OPTIONS;
 
-  name = 'Max velocity exposure';
+  name = '';
   category = 'Speed';
   level: WorkloadLabel = 'Medium';
   minutes = 18;
   demand = 8;
-  tags = 'max speed, full rest, field space';
-  notes = 'Build full recovery between reps. Keep volume low if contact is high later in the week.';
-  selectedExposures = new Set<string>(['Max sprint count']);
+  tags = '';
+  notes = '';
+  selectedExposures = new Set<string>();
+
+  onNameChange(value: string): void {
+    this.name = value;
+    const preset = this.planner.state().blockLabelPresets.find((item) => item.label.toLowerCase() === value.trim().toLowerCase());
+
+    if (preset) {
+      this.applyPreset(preset);
+    }
+  }
+
+  applyPreset(preset: BlockLabelPreset): void {
+    this.name = preset.label;
+    this.category = preset.category;
+    this.level = preset.level;
+    this.minutes = preset.minutes;
+    this.demand = preset.demand;
+    this.tags = preset.tags.join(', ');
+    this.notes = preset.notes;
+    this.selectedExposures = new Set(preset.exposures);
+  }
 
   toggleExposure(exposure: string, checked: boolean): void {
     if (checked) {

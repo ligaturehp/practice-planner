@@ -22,21 +22,13 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	store, err := app.NewPostgresStore(ctx, cfg.DatabaseURL)
+	store, err := newStore(ctx, cfg)
 	if err != nil {
 		log.Fatalf("database error: %v", err)
 	}
 	defer store.Close()
 
-	if err := store.ApplyMigrations(ctx); err != nil {
-		log.Fatalf("migration error: %v", err)
-	}
-
-	server := &http.Server{
-		Addr:              ":" + cfg.Port,
-		Handler:           app.NewServer(cfg, store).Handler(),
-		ReadHeaderTimeout: 5 * time.Second,
-	}
+	server := newHTTPServer(cfg, store)
 
 	go func() {
 		<-ctx.Done()
@@ -51,4 +43,30 @@ func main() {
 	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatalf("server error: %v", err)
 	}
+}
+
+func newHTTPServer(cfg app.Config, store app.Store) *http.Server {
+	return &http.Server{
+		Addr:              ":" + cfg.Port,
+		Handler:           app.NewServer(cfg, store).Handler(),
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      15 * time.Second,
+		IdleTimeout:       60 * time.Second,
+	}
+}
+
+func newStore(ctx context.Context, cfg app.Config) (app.Store, error) {
+	if cfg.DatabaseURL == "memory" && cfg.Env != "production" {
+		return app.NewMemoryStore(), nil
+	}
+	store, err := app.NewPostgresStore(ctx, cfg.DatabaseURL)
+	if err != nil {
+		return nil, err
+	}
+	if err := store.ApplyMigrations(ctx); err != nil {
+		store.Close()
+		return nil, err
+	}
+	return store, nil
 }

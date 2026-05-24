@@ -101,20 +101,6 @@ h3 {
   justify-content: flex-end;
 }
 
-.account-chip {
-  max-width: 220px;
-  overflow: hidden;
-  padding: 8px 10px;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  background: #fffef9;
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 800;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .field-inline {
   gap: 8px;
 }
@@ -295,7 +281,6 @@ textarea {
 }
 
 .block-dialog,
-.auth-panel,
 .saved-drawer {
   position: fixed;
   z-index: 11;
@@ -314,7 +299,6 @@ textarea {
   transform: translateX(-50%);
 }
 
-.auth-panel,
 .saved-drawer {
   top: 94px;
   right: 18px;
@@ -324,6 +308,38 @@ textarea {
 
 .saved-drawer {
   z-index: 8;
+}
+
+.account-panel {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 14px;
+  padding: 12px;
+  border: 1px solid rgba(24, 59, 91, 0.24);
+  border-radius: 8px;
+  background: #eef2ea;
+}
+
+.account-panel > div,
+.account-panel form {
+  display: grid;
+  gap: 8px;
+}
+
+.account-panel strong,
+.account-panel span {
+  display: block;
+}
+
+.account-panel span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.account-form label {
+  display: grid;
+  gap: 5px;
 }
 
 .dialog-panel {
@@ -685,16 +701,48 @@ textarea {
   font-size: 16px;
 }
 
-.block-form,
-.auth-form {
+.block-form {
   display: grid;
   gap: 12px;
 }
 
 .block-form label,
-.auth-form label {
+.preset-form label {
   display: grid;
   gap: 6px;
+}
+
+.preset-picker {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.preset-picker button {
+  min-height: 48px;
+  padding: 8px;
+  border: 1px solid rgba(24, 59, 91, 0.28);
+  border-radius: 6px;
+  background: #f5f9fb;
+  color: var(--ink);
+  text-align: left;
+}
+
+.preset-picker span,
+.preset-picker strong {
+  display: block;
+}
+
+.preset-picker span {
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.preset-picker strong {
+  margin-top: 4px;
+  color: var(--guide);
+  font-size: 11px;
+  text-transform: uppercase;
 }
 
 .form-row {
@@ -749,8 +797,31 @@ textarea {
   gap: 10px;
 }
 
+.preset-summary-list,
+.preset-list,
+.preset-form {
+  display: grid;
+  gap: 8px;
+}
+
+.preset-summary-list {
+  grid-template-columns: 1fr;
+}
+
+.preset-summary {
+  display: block;
+  padding: 7px 8px;
+  border: 1px solid rgba(24, 32, 27, 0.16);
+  border-radius: 6px;
+  background: #fffef9;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
 .block-item,
-.saved-plan {
+.saved-plan,
+.preset-row {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #fffef9;
@@ -758,7 +829,8 @@ textarea {
 }
 
 .block-item header,
-.saved-plan {
+.saved-plan,
+.preset-row {
   display: flex;
   justify-content: space-between;
   gap: 12px;
@@ -767,16 +839,40 @@ textarea {
   background: #eef2ea;
 }
 
+.preset-row {
+  align-items: center;
+}
+
+.preset-row strong,
+.preset-row span {
+  display: block;
+}
+
+.preset-row span {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
 .block-item h4 {
   margin: 0;
   font-size: 15px;
 }
 
 .block-item-actions,
-.saved-plan-actions {
+.saved-plan-actions,
+.preset-actions,
+.preset-row-actions {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.preset-actions .primary-button {
+  width: auto;
+  min-width: 130px;
 }
 
 .block-item .block-au {
@@ -952,7 +1048,6 @@ textarea {
   .app-header,
   .block-panel,
   .block-dialog,
-  .auth-panel,
   .saved-drawer,
   .section-note {
     display: none;

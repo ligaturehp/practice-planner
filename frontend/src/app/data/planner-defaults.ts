@@ -1,4 +1,4 @@
-import { BlockMap, DayId, DemandGrid, PlannerDay, PlannerState, Sport, TemplateId } from '../models/planner.models';
+import { BlockLabelPreset, BlockMap, DayId, DemandGrid, PlannerDay, PlannerState, Sport, TemplateId } from '../models/planner.models';
 
 export const DAYS: PlannerDay[] = [
   { id: 'sat', label: 'SAT', title: 'Recovery' },
@@ -63,6 +63,53 @@ export const EXPOSURE_OPTIONS = [
   'Velocity loss',
 ];
 
+export const DEFAULT_BLOCK_LABEL_PRESETS: BlockLabelPreset[] = [
+  {
+    id: 'preset-max-velocity',
+    label: 'Max velocity exposure',
+    category: 'Speed',
+    level: 'Medium',
+    minutes: 18,
+    demand: 8,
+    tags: ['max speed', 'full rest', 'field space'],
+    exposures: ['Max sprint count', 'High-speed running'],
+    notes: 'Build full recovery between reps. Keep volume low if contact is high later in the week.',
+  },
+  {
+    id: 'preset-contact',
+    label: 'Full-contact competitive period',
+    category: 'Contact',
+    level: 'High',
+    minutes: 28,
+    demand: 9,
+    tags: ['contact', 'full scheme', 'decision speed'],
+    exposures: ['Accelerations/decelerations', 'Change-of-direction volume'],
+    notes: 'Primary contact and decision-making stressor. Watch stacking with gym power work.',
+  },
+  {
+    id: 'preset-strength',
+    label: 'Lower-body strength emphasis',
+    category: 'Strength',
+    level: 'Medium',
+    minutes: 40,
+    demand: 7,
+    tags: ['heavy sets', 'team lift', 'moderate volume'],
+    exposures: ['Heavy sets'],
+    notes: 'Main strength exposure for the week. Keep technical field volume controlled.',
+  },
+  {
+    id: 'preset-walkthrough',
+    label: 'Walk-through install',
+    category: 'Tactical',
+    level: 'Low',
+    minutes: 25,
+    demand: 3,
+    tags: ['install', 'walk-through', 'low strain'],
+    exposures: [],
+    notes: 'Low physical cost period for tactical alignment and communication.',
+  },
+];
+
 export const TEMPLATES: Record<TemplateId, DemandGrid> = {
   gameFriday: {
     sat: ['Rest', '-', '-', '-', '-', 'Restore', 'Mobility', '-', 'None', 'Recovery', 'High'],
@@ -100,49 +147,12 @@ export function createEmptyBlocks(): BlockMap {
   }, {} as BlockMap);
 }
 
-export function createInitialBlocks(): BlockMap {
-  return {
-    ...createEmptyBlocks(),
-    mon: [
-      {
-        id: createId('block'),
-        name: 'Lower-body strength emphasis',
-        category: 'Strength',
-        level: 'Medium',
-        minutes: 40,
-        demand: 7,
-        tags: ['heavy sets', 'team lift', 'moderate volume'],
-        exposures: ['Heavy sets', 'Total volume load'],
-        notes: 'Main strength exposure for the week. Keep technical field volume controlled.',
-      },
-    ],
-    tue: [
-      {
-        id: createId('block'),
-        name: 'Full-contact competitive period',
-        category: 'Contact',
-        level: 'High',
-        minutes: 28,
-        demand: 9,
-        tags: ['contact', 'full scheme', 'decision speed'],
-        exposures: ['Accelerations/decelerations', 'Change-of-direction volume'],
-        notes: 'Primary contact and decision-making stressor. Watch stacking with gym power work.',
-      },
-    ],
-    thu: [
-      {
-        id: createId('block'),
-        name: 'Short max speed exposure',
-        category: 'Speed',
-        level: 'Medium',
-        minutes: 18,
-        demand: 8,
-        tags: ['max speed', 'full rest', 'low volume'],
-        exposures: ['Max sprint count', 'High-speed running'],
-        notes: 'Sharp exposure without turning Thursday into a volume day.',
-      },
-    ],
-  };
+export function createBlockLabelPresets(): BlockLabelPreset[] {
+  return DEFAULT_BLOCK_LABEL_PRESETS.map((preset) => ({
+    ...preset,
+    tags: [...preset.tags],
+    exposures: [...preset.exposures],
+  }));
 }
 
 export function rowLabelsForSport(sport: Sport): string[] {
@@ -160,9 +170,10 @@ export function createInitialState(): PlannerState {
     days: DAYS.map((day) => ({ ...day })),
     rowLabels: rowLabelsForSport(sport),
     grid: createGrid(template),
-    blocks: createInitialBlocks(),
+    blocks: createEmptyBlocks(),
+    blockLabelPresets: createBlockLabelPresets(),
     blockDialogOpen: false,
-    authPanelOpen: false,
+    labelConfigOpen: false,
     savedPlansOpen: false,
   };
 }

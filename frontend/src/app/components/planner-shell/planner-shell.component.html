@@ -20,12 +20,6 @@
     </label>
     <button class="icon-button" type="button" title="Print or save as PDF" (click)="planner.print()">PDF</button>
     <button class="text-button" type="button" (click)="planner.toggleSavedPlans()">Plans</button>
-    @if (api.currentUser()) {
-      <span class="account-chip">{{ api.currentUser()?.email }}</span>
-      <button class="text-button" type="button" (click)="logout()">Sign Out</button>
-    } @else {
-      <button class="text-button" type="button" (click)="planner.openAuthPanel()">Account</button>
-    }
   </div>
 </header>
 
@@ -71,5 +65,4 @@
 </main>
 
 <app-block-dialog />
-<app-auth-panel />
 <app-saved-plans-drawer />

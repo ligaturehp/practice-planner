@@ -15,6 +15,7 @@ type MemoryStore struct {
 	users    map[string]User
 	emailIDs map[string]string
 	sessions map[string]Session
+	resets   map[string]PasswordResetToken
 	plans    map[string]Plan
 	pingErr  error
 }
@@ -24,6 +25,7 @@ func NewMemoryStore() *MemoryStore {
 		users:    map[string]User{},
 		emailIDs: map[string]string{},
 		sessions: map[string]Session{},
+		resets:   map[string]PasswordResetToken{},
 		plans:    map[string]Plan{},
 	}
 }
@@ -74,6 +76,18 @@ func (s *MemoryStore) GetUserByID(_ context.Context, id string) (User, error) {
 	return user, nil
 }
 
+func (s *MemoryStore) UpdateUserPassword(_ context.Context, id string, passwordHash string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	user, ok := s.users[id]
+	if !ok {
+		return ErrNotFound
+	}
+	user.PasswordHash = passwordHash
+	s.users[id] = user
+	return nil
+}
+
 func (s *MemoryStore) CreateSession(_ context.Context, userID string, tokenHash string, expiresAt time.Time) (Session, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -113,6 +127,37 @@ func (s *MemoryStore) DeleteExpiredSessions(_ context.Context, now time.Time) er
 			delete(s.sessions, tokenHash)
 		}
 	}
+	return nil
+}
+
+func (s *MemoryStore) CreatePasswordResetToken(_ context.Context, userID string, tokenHash string, expiresAt time.Time) (PasswordResetToken, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	reset := PasswordResetToken{
+		ID:        newID(),
+		UserID:    userID,
+		TokenHash: tokenHash,
+		ExpiresAt: expiresAt,
+		CreatedAt: time.Now().UTC(),
+	}
+	s.resets[tokenHash] = reset
+	return reset, nil
+}
+
+func (s *MemoryStore) GetPasswordResetToken(_ context.Context, tokenHash string) (PasswordResetToken, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	reset, ok := s.resets[tokenHash]
+	if !ok {
+		return PasswordResetToken{}, ErrNotFound
+	}
+	return reset, nil
+}
+
+func (s *MemoryStore) DeletePasswordResetToken(_ context.Context, tokenHash string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.resets, tokenHash)
 	return nil
 }
 

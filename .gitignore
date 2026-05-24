@@ -1,4 +1,6 @@
 backend/api
+bin/
+dist/
 frontend/.angular/
 frontend/dist/
 frontend/node_modules/

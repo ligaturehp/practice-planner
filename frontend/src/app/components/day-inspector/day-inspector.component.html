@@ -99,4 +99,86 @@
     </div>
     <button class="primary-button" type="button" (click)="planner.openBlockDialog()">New Block</button>
   </section>
+
+  <section class="panel-section label-config" aria-labelledby="labelConfigTitle">
+    <div class="block-list-heading">
+      <div>
+        <p class="eyebrow">Block labels</p>
+        <h3 id="labelConfigTitle">Label Library</h3>
+      </div>
+      <button class="text-button" type="button" (click)="planner.toggleLabelConfig()">
+        {{ planner.state().labelConfigOpen ? 'Hide' : 'Edit' }}
+      </button>
+    </div>
+
+    @if (!planner.state().labelConfigOpen) {
+      <div class="preset-summary-list">
+        @for (preset of planner.state().blockLabelPresets; track preset.id) {
+          <span class="preset-summary">{{ preset.label }} | {{ preset.level }} | {{ presetAu(preset) }} AU</span>
+        }
+      </div>
+    } @else {
+      <form class="preset-form" (ngSubmit)="savePreset()">
+        <label>
+          <span>Label</span>
+          <input name="labelName" type="text" [(ngModel)]="labelName" placeholder="Example: Red-zone competition" required />
+        </label>
+
+        <div class="form-row">
+          <label>
+            <span>Category</span>
+            <select name="labelCategory" [(ngModel)]="labelCategory">
+              <option>Speed</option>
+              <option>Contact</option>
+              <option>Tactical</option>
+              <option>Technical skill</option>
+              <option>Decision making</option>
+              <option>Strength</option>
+              <option>Conditioning</option>
+              <option>Recovery</option>
+            </select>
+          </label>
+          <label>
+            <span>Load</span>
+            <select name="labelLevel" [(ngModel)]="labelLevel">
+              <option>Low</option>
+              <option>Medium</option>
+              <option>High</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="form-row">
+          <label>
+            <span>Minutes</span>
+            <input name="labelMinutes" type="number" min="1" max="240" [(ngModel)]="labelMinutes" />
+          </label>
+          <label>
+            <span>Demand</span>
+            <input name="labelDemand" type="number" min="0" max="10" step="0.5" [(ngModel)]="labelDemand" />
+          </label>
+        </div>
+
+        <div class="preset-actions">
+          <button class="primary-button" type="submit">{{ editingPresetId ? 'Update Label' : 'Add Label' }}</button>
+          <button class="text-button" type="button" (click)="resetPresetForm()">Clear</button>
+        </div>
+      </form>
+
+      <div class="preset-list">
+        @for (preset of planner.state().blockLabelPresets; track preset.id) {
+          <article class="preset-row">
+            <div>
+              <strong>{{ preset.label }}</strong>
+              <span>{{ preset.category }} | {{ preset.level }} | {{ presetAu(preset) }} AU</span>
+            </div>
+            <div class="preset-row-actions">
+              <button class="text-button" type="button" (click)="editPreset(preset)">Edit</button>
+              <button class="remove-block" type="button" (click)="planner.removeBlockLabelPreset(preset.id)">Remove</button>
+            </div>
+          </article>
+        }
+      </div>
+    }
+  </section>
 </aside>

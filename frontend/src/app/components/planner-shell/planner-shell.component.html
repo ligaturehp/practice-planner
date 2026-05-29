@@ -19,6 +19,7 @@
       </select>
     </label>
     <button class="icon-button" type="button" title="Print or save as PDF" (click)="planner.print()">PDF</button>
+    <button class="text-button" type="button" (click)="planner.openInspector()">Inspector</button>
     <button class="text-button" type="button" (click)="planner.toggleSavedPlans()">Plans</button>
   </div>
 </header>
@@ -55,9 +56,6 @@
       <span class="legend medium">Medium</span>
       <span class="legend high">High</span>
       <span class="legend max">Max</span>
-      <span class="legend neutral">Editable planning cells</span>
-      <span class="legend neutral">Block AU priority</span>
-      <span class="legend neutral">Keywords guide empty cells</span>
     </div>
   </section>
 

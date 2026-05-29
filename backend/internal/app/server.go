@@ -3,10 +3,12 @@ package app
 import (
 	"context"
 	"crypto/subtle"
+	"encoding/csv"
 	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -60,11 +62,20 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/auth/csrf", s.requireUser(s.handleCSRF))
 	mux.HandleFunc("POST /api/auth/password-reset/request", s.handlePasswordResetRequest)
 	mux.HandleFunc("POST /api/auth/password-reset/complete", s.handlePasswordResetComplete)
+	mux.HandleFunc("GET /api/organizations", s.requireUser(s.handleListOrganizations))
+	mux.HandleFunc("POST /api/organizations", s.requireUser(s.requireCSRF(s.handleCreateOrganization)))
+	mux.HandleFunc("POST /api/organizations/{id}/members", s.requireUser(s.requireCSRF(s.handleAddOrganizationMember)))
 	mux.HandleFunc("GET /api/plans", s.requireUser(s.handleListPlans))
 	mux.HandleFunc("POST /api/plans", s.requireUser(s.requireCSRF(s.handleCreatePlan)))
 	mux.HandleFunc("GET /api/plans/{id}", s.requireUser(s.handleGetPlan))
 	mux.HandleFunc("PUT /api/plans/{id}", s.requireUser(s.requireCSRF(s.handleUpdatePlan)))
 	mux.HandleFunc("DELETE /api/plans/{id}", s.requireUser(s.requireCSRF(s.handleDeletePlan)))
+	mux.HandleFunc("GET /api/plans/{id}/export.csv", s.requireUser(s.handleExportPlanCSV))
+	mux.HandleFunc("GET /api/plans/{id}/versions", s.requireUser(s.handleListPlanVersions))
+	mux.HandleFunc("POST /api/plans/{id}/versions/{versionID}/restore", s.requireUser(s.requireCSRF(s.handleRestorePlanVersion)))
+	mux.HandleFunc("POST /api/plans/{id}/duplicate", s.requireUser(s.requireCSRF(s.handleDuplicatePlan)))
+	mux.HandleFunc("POST /api/plans/{id}/share-links", s.requireUser(s.requireCSRF(s.handleCreatePlanShare)))
+	mux.HandleFunc("GET /api/shared-plans/{token}", s.handleGetSharedPlan)
 
 	return s.cors(mux)
 }
@@ -367,6 +378,69 @@ func (s *Server) handleListPlans(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string][]Plan{"plans": plans})
 }
 
+func (s *Server) handleListOrganizations(w http.ResponseWriter, r *http.Request) {
+	user := userFromContext(r.Context())
+	organizations, err := s.store.ListOrganizations(r.Context(), user.ID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not list organizations")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string][]Organization{"organizations": organizations})
+}
+
+func (s *Server) handleCreateOrganization(w http.ResponseWriter, r *http.Request) {
+	var input struct {
+		Name string `json:"name"`
+	}
+	if !decodeJSON(w, r, &input) {
+		return
+	}
+	input.Name = strings.TrimSpace(input.Name)
+	if input.Name == "" {
+		writeError(w, http.StatusBadRequest, "organization name is required")
+		return
+	}
+	user := userFromContext(r.Context())
+	organization, err := s.store.CreateOrganization(r.Context(), user.ID, input.Name)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not create organization")
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]Organization{"organization": organization})
+}
+
+func (s *Server) handleAddOrganizationMember(w http.ResponseWriter, r *http.Request) {
+	var input struct {
+		Email string `json:"email"`
+		Role  string `json:"role"`
+	}
+	if !decodeJSON(w, r, &input) {
+		return
+	}
+	input.Email = normalizeEmail(input.Email)
+	input.Role = strings.TrimSpace(input.Role)
+	if input.Email == "" {
+		writeError(w, http.StatusBadRequest, "member email is required")
+		return
+	}
+	if input.Role == "" {
+		input.Role = "member"
+	}
+	if input.Role != "owner" && input.Role != "member" {
+		writeError(w, http.StatusBadRequest, "valid member role is required")
+		return
+	}
+	user := userFromContext(r.Context())
+	if err := s.store.AddOrganizationMember(r.Context(), user.ID, r.PathValue("id"), input.Email, input.Role); errors.Is(err, ErrNotFound) {
+		writeError(w, http.StatusNotFound, "organization or member not found")
+		return
+	} else if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not add organization member")
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (s *Server) handleCreatePlan(w http.ResponseWriter, r *http.Request) {
 	input, ok := readPlanInput(w, r)
 	if !ok {
@@ -406,6 +480,10 @@ func (s *Server) handleUpdatePlan(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "plan not found")
 		return
 	}
+	if errors.Is(err, ErrConflict) {
+		writeError(w, http.StatusConflict, "plan has changed; reload before saving")
+		return
+	}
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not update plan")
 		return
@@ -425,6 +503,118 @@ func (s *Server) handleDeletePlan(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+func (s *Server) handleListPlanVersions(w http.ResponseWriter, r *http.Request) {
+	user := userFromContext(r.Context())
+	versions, err := s.store.ListPlanVersions(r.Context(), user.ID, r.PathValue("id"))
+	if errors.Is(err, ErrNotFound) {
+		writeError(w, http.StatusNotFound, "plan not found")
+		return
+	}
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not list plan versions")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string][]PlanVersion{"versions": versions})
+}
+
+func (s *Server) handleRestorePlanVersion(w http.ResponseWriter, r *http.Request) {
+	user := userFromContext(r.Context())
+	plan, err := s.store.RestorePlanVersion(r.Context(), user.ID, r.PathValue("id"), r.PathValue("versionID"))
+	if errors.Is(err, ErrNotFound) {
+		writeError(w, http.StatusNotFound, "plan version not found")
+		return
+	}
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not restore plan version")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]Plan{"plan": plan})
+}
+
+func (s *Server) handleDuplicatePlan(w http.ResponseWriter, r *http.Request) {
+	var input struct {
+		Name string `json:"name"`
+	}
+	if !decodeJSON(w, r, &input) {
+		return
+	}
+	input.Name = strings.TrimSpace(input.Name)
+	if input.Name == "" {
+		writeError(w, http.StatusBadRequest, "plan name is required")
+		return
+	}
+	user := userFromContext(r.Context())
+	plan, err := s.store.DuplicatePlan(r.Context(), user.ID, r.PathValue("id"), input.Name)
+	if errors.Is(err, ErrNotFound) {
+		writeError(w, http.StatusNotFound, "plan not found")
+		return
+	}
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not duplicate plan")
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]Plan{"plan": plan})
+}
+
+func (s *Server) handleCreatePlanShare(w http.ResponseWriter, r *http.Request) {
+	token, err := newShareToken()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not create share link")
+		return
+	}
+	tokenHash, err := hashShareToken(s.cfg.SessionSecret, token)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not create share link")
+		return
+	}
+	user := userFromContext(r.Context())
+	share, err := s.store.CreatePlanShare(r.Context(), user.ID, r.PathValue("id"), tokenHash)
+	if errors.Is(err, ErrNotFound) {
+		writeError(w, http.StatusNotFound, "plan not found")
+		return
+	}
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not create share link")
+		return
+	}
+	share.Token = token
+	writeJSON(w, http.StatusCreated, map[string]PlanShare{"share": share})
+}
+
+func (s *Server) handleGetSharedPlan(w http.ResponseWriter, r *http.Request) {
+	tokenHash, err := hashShareToken(s.cfg.SessionSecret, r.PathValue("token"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid share link")
+		return
+	}
+	plan, err := s.store.GetSharedPlan(r.Context(), tokenHash)
+	if errors.Is(err, ErrNotFound) {
+		writeError(w, http.StatusNotFound, "shared plan not found")
+		return
+	}
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not get shared plan")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]Plan{"plan": plan})
+}
+
+func (s *Server) handleExportPlanCSV(w http.ResponseWriter, r *http.Request) {
+	user := userFromContext(r.Context())
+	plan, err := s.store.GetPlan(r.Context(), user.ID, r.PathValue("id"))
+	if errors.Is(err, ErrNotFound) {
+		writeError(w, http.StatusNotFound, "plan not found")
+		return
+	}
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not export plan")
+		return
+	}
+	if err := writePlanCSV(w, plan); err != nil {
+		writeError(w, http.StatusInternalServerError, "could not export plan")
+	}
+}
+
 func readPlanInput(w http.ResponseWriter, r *http.Request) (PlanInput, bool) {
 	var input PlanInput
 	if !decodeJSON(w, r, &input) {
@@ -439,6 +629,14 @@ func readPlanInput(w http.ResponseWriter, r *http.Request) (PlanInput, bool) {
 	}
 	if len(input.PlanJSON) == 0 || !json.Valid(input.PlanJSON) {
 		writeError(w, http.StatusBadRequest, "valid plan_json is required")
+		return PlanInput{}, false
+	}
+	if r.Method == http.MethodPut && input.LockVersion == nil {
+		writeError(w, http.StatusBadRequest, "lock_version is required")
+		return PlanInput{}, false
+	}
+	if err := validatePlanInput(input); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
 		return PlanInput{}, false
 	}
 	return input, true
@@ -458,6 +656,69 @@ func decodeJSON(w http.ResponseWriter, r *http.Request, target any) bool {
 		return false
 	}
 	return true
+}
+
+func writePlanCSV(w http.ResponseWriter, plan Plan) error {
+	var payload plannerPayload
+	if err := json.Unmarshal(plan.PlanJSON, &payload); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
+	w.Header().Set("Content-Disposition", `attachment; filename="`+csvFilename(plan.Name)+`.csv"`)
+	writer := csv.NewWriter(w)
+	if err := writer.Write([]string{"plan_name", "day", "title", "block_name", "category", "minutes", "demand", "au", "exposures", "tags", "notes"}); err != nil {
+		return err
+	}
+	for _, day := range payload.Days {
+		for _, block := range payload.Blocks[day.ID] {
+			row := []string{
+				escapeCSVFormula(plan.Name),
+				escapeCSVFormula(day.Label),
+				escapeCSVFormula(day.Title),
+				escapeCSVFormula(block.Name),
+				escapeCSVFormula(block.Category),
+				strconv.Itoa(block.Minutes),
+				strconv.Itoa(block.Demand),
+				strconv.Itoa(block.Minutes * block.Demand),
+				escapeCSVFormula(strings.Join(block.Exposures, "; ")),
+				escapeCSVFormula(strings.Join(block.Tags, "; ")),
+				escapeCSVFormula(block.Notes),
+			}
+			if err := writer.Write(row); err != nil {
+				return err
+			}
+		}
+	}
+	writer.Flush()
+	return writer.Error()
+}
+
+func csvFilename(name string) string {
+	name = strings.ToLower(strings.TrimSpace(name))
+	replacer := strings.NewReplacer(" ", "-", "/", "-", "\\", "-", "\"", "", "'", "")
+	name = replacer.Replace(name)
+	parts := strings.Builder{}
+	for _, ch := range name {
+		if (ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9') || ch == '-' || ch == '_' {
+			parts.WriteRune(ch)
+		}
+	}
+	if parts.Len() == 0 {
+		return "practice-plan"
+	}
+	return parts.String()
+}
+
+func escapeCSVFormula(value string) string {
+	if value == "" {
+		return value
+	}
+	switch value[0] {
+	case '=', '+', '-', '@':
+		return "'" + value
+	default:
+		return value
+	}
 }
 
 func (s *Server) sessionCookie(value string, expiresAt time.Time) *http.Cookie {

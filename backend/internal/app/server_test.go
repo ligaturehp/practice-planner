@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -116,6 +117,17 @@ func TestPlansRequireAuthenticationAndValidateInput(t *testing.T) {
 	if res.Code != http.StatusBadRequest {
 		t.Fatalf("expected missing plan_json 400, got %d", res.Code)
 	}
+
+	res = performJSONWithHeaders(handler, http.MethodPost, "/api/plans", planBody("Week 1", "football", "weekly", validPlanJSON(), nil), cookie, map[string]string{"X-CSRF-Token": csrf})
+	if res.Code != http.StatusBadRequest {
+		t.Fatalf("expected invalid template 400, got %d", res.Code)
+	}
+
+	invalidPayload := `{"selectedDay":"mon","sport":"football","template":"gameFriday","days":[],"rowLabels":[],"grid":{},"blocks":{"mon":[{"id":"block-1","name":"Bad","category":"Contact","level":"High","minutes":-1,"demand":12,"tags":[],"exposures":[],"notes":""}]},"blockLabelPresets":[]}`
+	res = performJSONWithHeaders(handler, http.MethodPost, "/api/plans", planBody("Week 1", "football", "gameFriday", invalidPayload, nil), cookie, map[string]string{"X-CSRF-Token": csrf})
+	if res.Code != http.StatusBadRequest {
+		t.Fatalf("expected invalid planner block payload 400, got %d", res.Code)
+	}
 }
 
 func TestPlanOwnershipCRUD(t *testing.T) {
@@ -126,7 +138,7 @@ func TestPlanOwnershipCRUD(t *testing.T) {
 	csrfA := fetchCSRFToken(t, handler, coachA)
 	csrfB := fetchCSRFToken(t, handler, coachB)
 
-	createBody := `{"name":"Week 1","sport":"football","template":"weekly","plan_json":{"days":[]}}`
+	createBody := planBody("Week 1", "football", "gameFriday", validPlanJSON(), nil)
 	res := performJSONWithHeaders(handler, http.MethodPost, "/api/plans", createBody, coachA, map[string]string{"X-CSRF-Token": csrfA})
 	if res.Code != http.StatusCreated {
 		t.Fatalf("expected create 201, got %d: %s", res.Code, res.Body.String())
@@ -142,7 +154,7 @@ func TestPlanOwnershipCRUD(t *testing.T) {
 		t.Fatalf("expected cross-user get 404, got %d", res.Code)
 	}
 
-	updateBody := `{"name":"Stolen","sport":"football","template":"weekly","plan_json":{"days":[1]}}`
+	updateBody := planBody("Stolen", "football", "gameFriday", validPlanJSON(), &plan.LockVersion)
 	res = performJSONWithHeaders(handler, http.MethodPut, "/api/plans/"+plan.ID, updateBody, coachB, map[string]string{"X-CSRF-Token": csrfB})
 	if res.Code != http.StatusNotFound {
 		t.Fatalf("expected cross-user update 404, got %d", res.Code)
@@ -153,7 +165,7 @@ func TestPlanOwnershipCRUD(t *testing.T) {
 		t.Fatalf("expected cross-user delete 404, got %d", res.Code)
 	}
 
-	updateBody = `{"name":"Week 1 Updated","sport":"rugby","template":"microcycle","plan_json":{"days":[1]}}`
+	updateBody = planBody("Week 1 Updated", "rugby", "gameSaturday", validPlanJSONFor("rugby", "gameSaturday"), &plan.LockVersion)
 	res = performJSONWithHeaders(handler, http.MethodPut, "/api/plans/"+plan.ID, updateBody, coachA, map[string]string{"X-CSRF-Token": csrfA})
 	if res.Code != http.StatusOK {
 		t.Fatalf("expected owner update 200, got %d: %s", res.Code, res.Body.String())
@@ -161,6 +173,9 @@ func TestPlanOwnershipCRUD(t *testing.T) {
 	updated := decodePlan(t, res.Body.Bytes())
 	if updated.Name != "Week 1 Updated" || updated.Sport != "rugby" {
 		t.Fatalf("unexpected updated plan: %+v", updated)
+	}
+	if updated.LockVersion != plan.LockVersion+1 {
+		t.Fatalf("expected lock version to increment from %d to %d, got %d", plan.LockVersion, plan.LockVersion+1, updated.LockVersion)
 	}
 
 	res = performJSON(handler, http.MethodGet, "/api/plans", "", coachB)
@@ -185,6 +200,213 @@ func TestPlanOwnershipCRUD(t *testing.T) {
 	res = performJSON(handler, http.MethodGet, "/api/plans/"+plan.ID, "", coachA)
 	if res.Code != http.StatusNotFound {
 		t.Fatalf("expected deleted plan 404, got %d", res.Code)
+	}
+}
+
+func TestPlanUpdateRejectsStaleLockVersion(t *testing.T) {
+	store := NewMemoryStore()
+	handler := newTestHandler(store)
+	cookie := registerUser(t, handler, "lock@example.com")
+	csrf := fetchCSRFToken(t, handler, cookie)
+
+	res := performJSONWithHeaders(handler, http.MethodPost, "/api/plans", planBody("Week 1", "football", "gameFriday", validPlanJSON(), nil), cookie, map[string]string{"X-CSRF-Token": csrf})
+	if res.Code != http.StatusCreated {
+		t.Fatalf("expected create 201, got %d: %s", res.Code, res.Body.String())
+	}
+	plan := decodePlan(t, res.Body.Bytes())
+	if plan.LockVersion != 1 {
+		t.Fatalf("expected new plan lock version 1, got %d", plan.LockVersion)
+	}
+
+	res = performJSONWithHeaders(handler, http.MethodPut, "/api/plans/"+plan.ID, planBody("Week 1 Current", "football", "gameFriday", validPlanJSON(), &plan.LockVersion), cookie, map[string]string{"X-CSRF-Token": csrf})
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected current lock update 200, got %d: %s", res.Code, res.Body.String())
+	}
+	updated := decodePlan(t, res.Body.Bytes())
+	if updated.LockVersion != 2 {
+		t.Fatalf("expected updated lock version 2, got %d", updated.LockVersion)
+	}
+
+	res = performJSONWithHeaders(handler, http.MethodPut, "/api/plans/"+plan.ID, planBody("Week 1 Stale", "football", "gameFriday", validPlanJSON(), &plan.LockVersion), cookie, map[string]string{"X-CSRF-Token": csrf})
+	if res.Code != http.StatusConflict {
+		t.Fatalf("expected stale lock version 409, got %d: %s", res.Code, res.Body.String())
+	}
+}
+
+func TestPlanVersionsRestoreAndDuplicate(t *testing.T) {
+	store := NewMemoryStore()
+	handler := newTestHandler(store)
+	cookie := registerUser(t, handler, "versions@example.com")
+	csrf := fetchCSRFToken(t, handler, cookie)
+
+	res := performJSONWithHeaders(handler, http.MethodPost, "/api/plans", planBody("Week 1", "football", "gameFriday", validPlanJSON(), nil), cookie, map[string]string{"X-CSRF-Token": csrf})
+	if res.Code != http.StatusCreated {
+		t.Fatalf("expected create 201, got %d: %s", res.Code, res.Body.String())
+	}
+	plan := decodePlan(t, res.Body.Bytes())
+	res = performJSONWithHeaders(handler, http.MethodPut, "/api/plans/"+plan.ID, planBody("Week 1 Updated", "rugby", "gameSaturday", validPlanJSONFor("rugby", "gameSaturday"), &plan.LockVersion), cookie, map[string]string{"X-CSRF-Token": csrf})
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected update 200, got %d: %s", res.Code, res.Body.String())
+	}
+
+	res = performJSON(handler, http.MethodGet, "/api/plans/"+plan.ID+"/versions", "", cookie)
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected versions 200, got %d: %s", res.Code, res.Body.String())
+	}
+	var versionsBody struct {
+		Versions []PlanVersion `json:"versions"`
+	}
+	if err := json.Unmarshal(res.Body.Bytes(), &versionsBody); err != nil {
+		t.Fatalf("decode versions: %v", err)
+	}
+	if len(versionsBody.Versions) != 2 {
+		t.Fatalf("expected create and update versions, got %d", len(versionsBody.Versions))
+	}
+
+	createVersionID := versionsBody.Versions[len(versionsBody.Versions)-1].ID
+	res = performJSONWithHeaders(handler, http.MethodPost, "/api/plans/"+plan.ID+"/versions/"+createVersionID+"/restore", `{}`, cookie, map[string]string{"X-CSRF-Token": csrf})
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected restore 200, got %d: %s", res.Code, res.Body.String())
+	}
+	restored := decodePlan(t, res.Body.Bytes())
+	if restored.Name != "Week 1" || restored.Sport != "football" || restored.Template != "gameFriday" {
+		t.Fatalf("unexpected restored plan: %+v", restored)
+	}
+	if restored.LockVersion != 3 {
+		t.Fatalf("expected restore to increment lock version to 3, got %d", restored.LockVersion)
+	}
+
+	res = performJSONWithHeaders(handler, http.MethodPost, "/api/plans/"+plan.ID+"/duplicate", `{"name":"Week 2"}`, cookie, map[string]string{"X-CSRF-Token": csrf})
+	if res.Code != http.StatusCreated {
+		t.Fatalf("expected duplicate 201, got %d: %s", res.Code, res.Body.String())
+	}
+	duplicate := decodePlan(t, res.Body.Bytes())
+	if duplicate.ID == plan.ID || duplicate.Name != "Week 2" || duplicate.LockVersion != 1 {
+		t.Fatalf("unexpected duplicate plan: %+v", duplicate)
+	}
+}
+
+func TestRegisterCreatesDefaultOrganization(t *testing.T) {
+	store := NewMemoryStore()
+	handler := newTestHandler(store)
+	cookie := registerUser(t, handler, "team@example.com")
+
+	res := performJSON(handler, http.MethodGet, "/api/organizations", "", cookie)
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected organizations 200, got %d: %s", res.Code, res.Body.String())
+	}
+	var body struct {
+		Organizations []Organization `json:"organizations"`
+	}
+	if err := json.Unmarshal(res.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode organizations: %v", err)
+	}
+	if len(body.Organizations) != 1 || body.Organizations[0].Role != "owner" {
+		t.Fatalf("expected default owner organization, got %+v", body.Organizations)
+	}
+}
+
+func TestOrganizationMemberCanAccessOrganizationPlans(t *testing.T) {
+	store := NewMemoryStore()
+	handler := newTestHandler(store)
+	owner := registerUser(t, handler, "owner@example.com")
+	member := registerUser(t, handler, "member@example.com")
+	ownerCSRF := fetchCSRFToken(t, handler, owner)
+
+	createOrg := performJSONWithHeaders(handler, http.MethodPost, "/api/organizations", `{"name":"Varsity Staff"}`, owner, map[string]string{"X-CSRF-Token": ownerCSRF})
+	if createOrg.Code != http.StatusCreated {
+		t.Fatalf("expected create org 201, got %d: %s", createOrg.Code, createOrg.Body.String())
+	}
+	org := decodeOrganization(t, createOrg.Body.Bytes())
+
+	addMember := performJSONWithHeaders(handler, http.MethodPost, "/api/organizations/"+org.ID+"/members", `{"email":"member@example.com","role":"member"}`, owner, map[string]string{"X-CSRF-Token": ownerCSRF})
+	if addMember.Code != http.StatusNoContent {
+		t.Fatalf("expected add member 204, got %d: %s", addMember.Code, addMember.Body.String())
+	}
+
+	res := performJSONWithHeaders(handler, http.MethodPost, "/api/plans", planBodyWithOrg("Shared Week", "football", "gameFriday", validPlanJSON(), org.ID, nil), owner, map[string]string{"X-CSRF-Token": ownerCSRF})
+	if res.Code != http.StatusCreated {
+		t.Fatalf("expected owner create plan 201, got %d: %s", res.Code, res.Body.String())
+	}
+	plan := decodePlan(t, res.Body.Bytes())
+
+	res = performJSON(handler, http.MethodGet, "/api/plans/"+plan.ID, "", member)
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected org member get 200, got %d: %s", res.Code, res.Body.String())
+	}
+	memberPlan := decodePlan(t, res.Body.Bytes())
+	if memberPlan.OrganizationID != org.ID {
+		t.Fatalf("expected organization-scoped plan, got %+v", memberPlan)
+	}
+}
+
+func TestPlanShareLinksExposeReadOnlyPlan(t *testing.T) {
+	store := NewMemoryStore()
+	handler := newTestHandler(store)
+	owner := registerUser(t, handler, "share-owner@example.com")
+	other := registerUser(t, handler, "share-other@example.com")
+	csrf := fetchCSRFToken(t, handler, owner)
+
+	res := performJSONWithHeaders(handler, http.MethodPost, "/api/plans", planBody("Shared Week", "football", "gameFriday", validPlanJSON(), nil), owner, map[string]string{"X-CSRF-Token": csrf})
+	if res.Code != http.StatusCreated {
+		t.Fatalf("expected create plan 201, got %d: %s", res.Code, res.Body.String())
+	}
+	plan := decodePlan(t, res.Body.Bytes())
+
+	res = performJSONWithHeaders(handler, http.MethodPost, "/api/plans/"+plan.ID+"/share-links", `{}`, other, map[string]string{"X-CSRF-Token": fetchCSRFToken(t, handler, other)})
+	if res.Code != http.StatusNotFound {
+		t.Fatalf("expected cross-user share create 404, got %d: %s", res.Code, res.Body.String())
+	}
+
+	res = performJSONWithHeaders(handler, http.MethodPost, "/api/plans/"+plan.ID+"/share-links", `{}`, owner, map[string]string{"X-CSRF-Token": csrf})
+	if res.Code != http.StatusCreated {
+		t.Fatalf("expected share link 201, got %d: %s", res.Code, res.Body.String())
+	}
+	share := decodePlanShare(t, res.Body.Bytes())
+	if share.Token == "" || share.PlanID != plan.ID {
+		t.Fatalf("unexpected share response: %+v", share)
+	}
+
+	res = performJSON(handler, http.MethodGet, "/api/shared-plans/"+share.Token, "", nil)
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected public share lookup 200, got %d: %s", res.Code, res.Body.String())
+	}
+	sharedPlan := decodePlan(t, res.Body.Bytes())
+	if sharedPlan.ID != plan.ID || sharedPlan.Name != "Shared Week" {
+		t.Fatalf("unexpected shared plan: %+v", sharedPlan)
+	}
+}
+
+func TestPlanCSVExportRequiresPlanAccess(t *testing.T) {
+	store := NewMemoryStore()
+	handler := newTestHandler(store)
+	owner := registerUser(t, handler, "csv-owner@example.com")
+	other := registerUser(t, handler, "csv-other@example.com")
+	csrf := fetchCSRFToken(t, handler, owner)
+
+	res := performJSONWithHeaders(handler, http.MethodPost, "/api/plans", planBody("CSV Week", "football", "gameFriday", validPlanJSON(), nil), owner, map[string]string{"X-CSRF-Token": csrf})
+	if res.Code != http.StatusCreated {
+		t.Fatalf("expected create plan 201, got %d: %s", res.Code, res.Body.String())
+	}
+	plan := decodePlan(t, res.Body.Bytes())
+
+	res = performJSON(handler, http.MethodGet, "/api/plans/"+plan.ID+"/export.csv", "", other)
+	if res.Code != http.StatusNotFound {
+		t.Fatalf("expected cross-user csv export 404, got %d: %s", res.Code, res.Body.String())
+	}
+
+	res = performJSON(handler, http.MethodGet, "/api/plans/"+plan.ID+"/export.csv", "", owner)
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected csv export 200, got %d: %s", res.Code, res.Body.String())
+	}
+	if got := res.Header().Get("Content-Type"); got != "text/csv; charset=utf-8" {
+		t.Fatalf("expected csv content type, got %q", got)
+	}
+	body := res.Body.String()
+	for _, expected := range []string{"plan_name,day,title,block_name,category,minutes,demand,au,exposures,tags,notes", "CSV Week,MON,Install,Contact period,Contact,28,9,252"} {
+		if !strings.Contains(body, expected) {
+			t.Fatalf("expected CSV to contain %q, got:\n%s", expected, body)
+		}
 	}
 }
 
@@ -241,7 +463,7 @@ func TestMutatingAuthenticatedRoutesRequireCSRFToken(t *testing.T) {
 	handler := newTestHandler(store)
 	cookie := registerUser(t, handler, "csrf@example.com")
 
-	res := performJSON(handler, http.MethodPost, "/api/plans", `{"name":"Week 1","sport":"football","template":"gameFriday","plan_json":{"days":[]}}`, cookie)
+	res := performJSON(handler, http.MethodPost, "/api/plans", planBody("Week 1", "football", "gameFriday", validPlanJSON(), nil), cookie)
 	if res.Code != http.StatusForbidden {
 		t.Fatalf("expected missing CSRF token to return 403, got %d: %s", res.Code, res.Body.String())
 	}
@@ -251,7 +473,7 @@ func TestMutatingAuthenticatedRoutesRequireCSRFToken(t *testing.T) {
 		handler,
 		http.MethodPost,
 		"/api/plans",
-		`{"name":"Week 1","sport":"football","template":"gameFriday","plan_json":{"days":[]}}`,
+		planBody("Week 1", "football", "gameFriday", validPlanJSON(), nil),
 		cookie,
 		map[string]string{"X-CSRF-Token": csrf},
 	)
@@ -391,4 +613,59 @@ func decodePlan(t *testing.T, body []byte) Plan {
 		t.Fatalf("decode plan response: %v", err)
 	}
 	return response.Plan
+}
+
+func planBody(name string, sport string, template string, planJSON string, lockVersion *int) string {
+	return planBodyWithOrg(name, sport, template, planJSON, "", lockVersion)
+}
+
+func planBodyWithOrg(name string, sport string, template string, planJSON string, organizationID string, lockVersion *int) string {
+	body := `{"name":` + quoteJSON(name) + `,"sport":` + quoteJSON(sport) + `,"template":` + quoteJSON(template) + `,"plan_json":` + planJSON
+	if organizationID != "" {
+		body += `,"organization_id":` + quoteJSON(organizationID)
+	}
+	if lockVersion != nil {
+		body += `,"lock_version":` + quoteJSONInt(*lockVersion)
+	}
+	return body + `}`
+}
+
+func decodeOrganization(t *testing.T, body []byte) Organization {
+	t.Helper()
+	var response struct {
+		Organization Organization `json:"organization"`
+	}
+	if err := json.Unmarshal(body, &response); err != nil {
+		t.Fatalf("decode organization response: %v", err)
+	}
+	return response.Organization
+}
+
+func decodePlanShare(t *testing.T, body []byte) PlanShare {
+	t.Helper()
+	var response struct {
+		Share PlanShare `json:"share"`
+	}
+	if err := json.Unmarshal(body, &response); err != nil {
+		t.Fatalf("decode share response: %v", err)
+	}
+	return response.Share
+}
+
+func validPlanJSON() string {
+	return validPlanJSONFor("football", "gameFriday")
+}
+
+func validPlanJSONFor(sport string, template string) string {
+	return `{"selectedDay":"mon","sport":` + quoteJSON(sport) + `,"template":` + quoteJSON(template) + `,"days":[{"id":"sat","label":"SAT","title":"Recovery"},{"id":"sun","label":"SUN","title":"Active Recovery"},{"id":"mon","label":"MON","title":"Install"},{"id":"tue","label":"TUE","title":"Contact"},{"id":"wed","label":"WED","title":"Specials"},{"id":"thu","label":"THU","title":"Execution + Speed"},{"id":"fri","label":"FRI","title":"Game"}],"rowLabels":["Pace"],"grid":{"sat":["Rest"],"sun":["Easy"],"mon":["Moderate"],"tue":["Fast"],"wed":["Moderate"],"thu":["Fast"],"fri":["Max"]},"blocks":{"sat":[],"sun":[],"mon":[{"id":"block-1","name":"Contact period","category":"Contact","level":"High","minutes":28,"demand":9,"tags":["contact"],"exposures":["Accelerations/decelerations"],"notes":"Primary stressor"}],"tue":[],"wed":[],"thu":[],"fri":[]},"blockLabelPresets":[{"id":"preset-1","label":"Walk-through","category":"Tactical","level":"Low","minutes":25,"demand":3,"tags":["install"],"exposures":[],"notes":"Low strain"}]}`
+}
+
+func quoteJSON(value string) string {
+	raw, _ := json.Marshal(value)
+	return string(raw)
+}
+
+func quoteJSONInt(value int) string {
+	raw, _ := json.Marshal(value)
+	return string(raw)
 }

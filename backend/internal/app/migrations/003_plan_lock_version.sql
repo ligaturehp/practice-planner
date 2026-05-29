@@ -1,0 +1,2 @@
+ALTER TABLE plans
+	ADD COLUMN IF NOT EXISTS lock_version integer NOT NULL DEFAULT 1;

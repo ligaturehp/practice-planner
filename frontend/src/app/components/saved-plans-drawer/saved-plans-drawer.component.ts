@@ -16,6 +16,8 @@ export class SavedPlansDrawerComponent {
   email = '';
   password = '';
   authMode: 'login' | 'register' = 'login';
+  historyPlanId = '';
+  organizationName = 'New team';
 
   async savePlan(): Promise<void> {
     const name = this.planName.trim() || 'Untitled weekly plan';
@@ -26,6 +28,28 @@ export class SavedPlansDrawerComponent {
   async deletePlan(planId: string): Promise<void> {
     await this.planner.deletePlan(planId);
     this.status = 'Plan deleted.';
+  }
+
+  async showHistory(planId: string): Promise<void> {
+    this.historyPlanId = this.historyPlanId === planId ? '' : planId;
+    if (this.historyPlanId) {
+      await this.planner.refreshPlanVersions(planId);
+    }
+  }
+
+  async restoreVersion(planId: string, versionId: string): Promise<void> {
+    await this.planner.restoreVersion(planId, versionId);
+    this.status = 'Plan version restored.';
+  }
+
+  async duplicatePlan(planId: string, name: string): Promise<void> {
+    await this.planner.duplicatePlan(planId, `${name} copy`);
+    this.status = 'Plan duplicated.';
+  }
+
+  async createShareLink(planId: string): Promise<void> {
+    await this.planner.createShareLink(planId);
+    this.status = 'Share link created.';
   }
 
   async submitAccount(): Promise<void> {
@@ -41,8 +65,30 @@ export class SavedPlansDrawerComponent {
     this.password = '';
   }
 
+  async createOrganization(): Promise<void> {
+    const name = this.organizationName.trim() || 'New team';
+    await this.planner.createOrganization(name);
+    this.status = 'Team created.';
+    this.organizationName = 'New team';
+  }
+
   async logout(): Promise<void> {
     await this.planner.logout();
     this.status = 'Signed out. Guest drafts are saved in this browser.';
+  }
+
+  autosaveLabel(): string {
+    switch (this.planner.autosaveStatus()) {
+      case 'saving':
+        return 'saving';
+      case 'saved':
+        return 'saved';
+      case 'failed':
+        return 'needs attention';
+      case 'conflict':
+        return 'reload needed';
+      default:
+        return 'idle';
+    }
   }
 }

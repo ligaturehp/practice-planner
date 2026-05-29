@@ -50,6 +50,12 @@ export function createFrontendServer({ publicDir = resolve('dist/frontend/browse
       return;
     }
 
+    if (['/wails/custom.js', '/wails/runtime'].includes((request.url || '').split('?')[0])) {
+      response.writeHead(200, { 'Content-Type': contentTypes['.js'] });
+      response.end('');
+      return;
+    }
+
     const filePath = resolveAssetPath(resolvedPublicDir, request.url || '/');
 
     try {

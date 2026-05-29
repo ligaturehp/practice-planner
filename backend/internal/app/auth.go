@@ -66,3 +66,11 @@ func hashSessionToken(secret string, token string) (string, error) {
 func newPasswordResetToken() (string, error) {
 	return newSessionToken()
 }
+
+func newShareToken() (string, error) {
+	return newSessionToken()
+}
+
+func hashShareToken(secret string, token string) (string, error) {
+	return hashSessionToken(secret, "share:"+token)
+}

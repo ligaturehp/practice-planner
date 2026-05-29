@@ -1,4 +1,4 @@
-import { createEmptyBlocks, createInitialState } from '../data/planner-defaults';
+import { cellIntentOptions, createEmptyBlocks, createInitialState, demandForCellIntent } from '../data/planner-defaults';
 import { PlannerCalculationsService } from './planner-calculations.service';
 
 describe('PlannerCalculationsService', () => {
@@ -28,6 +28,32 @@ describe('PlannerCalculationsService', () => {
 
     expect(levels.fri).toBe('High');
     expect(service.getDayAu(state, 'fri')).toBe(0);
+  });
+
+  it('uses explicit cell demand scores before blocks are assigned', () => {
+    const state = createInitialState();
+    state.blocks = createEmptyBlocks();
+    Object.values(state.cellDemands).forEach((demands) => demands.fill(0));
+    state.cellDemands.mon[0] = 4;
+    state.cellDemands.tue[0] = 1;
+
+    expect(service.classifyCellDemand(4)).toBe('max');
+    expect(service.classifyCellDemand(1)).toBe('low');
+    expect(service.getDayKeywordScore(state, 'mon')).toBeGreaterThan(service.getDayKeywordScore(state, 'tue'));
+  });
+
+  it('provides swim-lane-specific intent variables', () => {
+    expect(cellIntentOptions('Pace')).toEqual(['Rest', 'Slow', 'Moderate', 'Fast', 'Max', 'Game']);
+    expect(cellIntentOptions('Work / rest')).toEqual(['-', 'Full rest', 'Long rest', 'Longer rest', 'Moderate rest', 'Short rest', 'Short + sharp']);
+    expect(cellIntentOptions('Contact')).toContain('Full contact');
+    expect(cellIntentOptions('S&C emphasis')).toContain('Power / speed');
+    expect(demandForCellIntent('Slow')).toBe(1);
+    expect(demandForCellIntent('Max')).toBe(4);
+  });
+
+  it('treats high recovery emphasis as lower athlete load', () => {
+    expect(demandForCellIntent('High', 'Recovery emphasis')).toBe(1);
+    expect(demandForCellIntent('Low', 'Recovery emphasis')).toBe(3);
   });
 
   it('starts a new plan without assigned training blocks', () => {

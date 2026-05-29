@@ -22,7 +22,7 @@ describe('ApiAuthService', () => {
   it('registers with credentials and stores the signed-in user', async () => {
     const request = service.register('coach@example.com', 'strong-password');
 
-    const req = http.expectOne('http://localhost:8080/api/auth/register');
+    const req = http.expectOne('http://127.0.0.1:8092/api/auth/register');
     expect(req.request.method).toBe('POST');
     expect(req.request.withCredentials).toBe(true);
     expect(req.request.body).toEqual({ email: 'coach@example.com', password: 'strong-password' });
@@ -35,7 +35,7 @@ describe('ApiAuthService', () => {
 
   it('bootstraps an existing session and handles signed-out responses', async () => {
     const signedIn = service.bootstrap();
-    const me = http.expectOne('http://localhost:8080/api/auth/me');
+    const me = http.expectOne('http://127.0.0.1:8092/api/auth/me');
     expect(me.request.method).toBe('GET');
     expect(me.request.withCredentials).toBe(true);
     me.flush({ user: { id: 'user-1', email: 'coach@example.com', created_at: '2026-05-24T00:00:00Z' } });
@@ -43,7 +43,7 @@ describe('ApiAuthService', () => {
     expect(service.status()).toBe('signed-in');
 
     const signedOut = service.bootstrap();
-    const nextMe = http.expectOne('http://localhost:8080/api/auth/me');
+    const nextMe = http.expectOne('http://127.0.0.1:8092/api/auth/me');
     nextMe.flush({ error: 'authentication required' }, { status: 401, statusText: 'Unauthorized' });
     await signedOut;
     expect(service.user()).toBeNull();
@@ -52,18 +52,18 @@ describe('ApiAuthService', () => {
 
   it('logs out with credentials and clears account state', async () => {
     const login = service.login('coach@example.com', 'strong-password');
-    http.expectOne('http://localhost:8080/api/auth/login').flush({
+    http.expectOne('http://127.0.0.1:8092/api/auth/login').flush({
       user: { id: 'user-1', email: 'coach@example.com', created_at: '2026-05-24T00:00:00Z' },
     });
     await login;
 
     const logout = service.logout();
-    const csrf = http.expectOne('http://localhost:8080/api/auth/csrf');
+    const csrf = http.expectOne('http://127.0.0.1:8092/api/auth/csrf');
     expect(csrf.request.method).toBe('GET');
     expect(csrf.request.withCredentials).toBe(true);
     csrf.flush({ csrf_token: 'csrf-token' });
     await new Promise((resolve) => setTimeout(resolve, 0));
-    const req = http.expectOne('http://localhost:8080/api/auth/logout');
+    const req = http.expectOne('http://127.0.0.1:8092/api/auth/logout');
     expect(req.request.method).toBe('POST');
     expect(req.request.withCredentials).toBe(true);
     expect(req.request.headers.get('X-CSRF-Token')).toBe('csrf-token');

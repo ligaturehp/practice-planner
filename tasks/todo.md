@@ -1,5 +1,129 @@
 # Practice Planner Prototype
 
+## Follow-up Plan: Active Cell Collapse Control
+
+- [x] Add an in-cell control that collapses the active matrix editor without selecting another cell.
+- [x] Support keyboard collapse with Escape from the active intent input.
+- [x] Preserve manual demand overrides when collapsing an unchanged intent.
+- [x] Add focused component coverage for collapse behavior.
+- [x] Verify tests, build, and browser behavior.
+
+## Active Cell Collapse Control Review
+
+- Active matrix editors now show a compact `Done` control that collapses the cell back to the at-rest intent/demand badge view.
+- Pressing Escape from the active intent input also collapses the editor.
+- Collapsing commits changed intent text, but leaves manual demand overrides intact when the intent text did not change.
+- Verification passed: `npm test -- --watch=false`; `npm run test:node`; `API_BASE_URL=http://127.0.0.1:8092 npm run build`; and browser verification at `http://127.0.0.1:4201/`.
+- Browser screenshot saved at `frontend/__screenshots__/cell-editor-collapse-control.png`.
+
+## Follow-up Plan: Inline Matrix Demand Editor
+
+- [x] Replace the detached selected-cell demand control with an active-cell inline editor.
+- [x] Replace native matrix comboboxes with compact custom intent controls.
+- [x] Show lane-specific intent options with demand-preview labels.
+- [x] Support custom typed intent values in the active cell.
+- [x] Use coach-facing demand labels: Off, Low, Moderate, High, and Max.
+- [x] Keep intent changes resetting demand through the existing intent-to-demand mapping.
+- [x] Keep manual demand changes separate from intent text changes.
+- [x] Preserve block-AU coloring as the dominant visual treatment for block-bearing cells.
+- [x] Show a visible intent-demand chip/rail in every matrix cell.
+- [x] Reveal demand override controls only for the active cell.
+- [x] Add focused Angular coverage for inline demand rendering and interaction.
+- [x] Verify tests, build, and browser behavior.
+
+## Inline Matrix Demand Editor Review
+
+- Matrix cells now render as compact intent text plus a demand badge at rest, keeping the board scannable.
+- Selecting a cell opens a custom editor with a typed intent field, lane-specific option buttons, and demand-preview labels.
+- The active-cell editor shows demand override buttons only for the selected cell.
+- Custom typed intent values commit through the existing intent-to-demand mapping, and manual demand overrides do not alter intent text.
+- Block-bearing cells keep block-AU color precedence while still showing the compact intent-demand badge.
+- Verification passed: `npm test -- --watch=false`; `npm run test:node`; `API_BASE_URL=http://127.0.0.1:8092 npm run build`; and browser verification at `http://127.0.0.1:4201/`.
+- Browser screenshot saved at `frontend/__screenshots__/compact-inline-demand-editor.png`.
+
+## Local Postgres Backend Check
+
+- [x] Check whether local Postgres is running and reachable.
+- [x] Confirm or create a dedicated local development database.
+- [x] Run backend migrations against local Postgres.
+- [x] Start backend with local Postgres settings and verify health/API behavior.
+- [x] Record findings and any remaining setup gaps.
+- [x] Add a local backend run script so Postgres dev settings are repeatable.
+
+### Local Postgres Backend Check Review
+
+- Local PostgreSQL 15.14 is running on `localhost:5432` and accepting connections as user `josephstich`.
+- Created dedicated development database `practice_planner_dev` because no Practice Planner database existed locally.
+- Backend started successfully with `DATABASE_URL=postgres://josephstich@localhost:5432/practice_planner_dev?sslmode=disable`, `SESSION_SECRET=dev-session-secret-32-characters!!`, and local frontend origins.
+- Embedded migrations applied successfully: `001_init`, `002_auth_safety`, `003_plan_lock_version`, `004_plan_versions`, `005_team_model`, and `006_plan_shares`.
+- Verified `/healthz` returned `{"status":"ok"}`.
+- Verified register/session/CSRF/default organization behavior against Postgres: registration returned `201 Created`, CSRF token was issued, and the new account received a default `My Team` owner organization.
+- Added `scripts/run-backend-dev.sh` with local Postgres defaults and updated `README.md` with the local backend command.
+
+## Follow-up Plan: Planning Cell Intent Controls
+
+- [x] Remove non-actionable explanatory legend chips from the weekly grid legend.
+- [x] Add per-cell intent inputs with preset options seeded from the existing matrix values.
+- [x] Add per-cell demand selectors so coaches can change cell color before assigning detailed blocks.
+- [x] Point local Angular development at the local backend port used by the dev run script.
+- [x] Add Wails shim assets for local web serving so browser checks do not report desktop-only asset failures.
+- [x] Verify tests, production build, and browser behavior.
+
+## Planning Cell Intent Controls Review
+
+- Grid cells now use an intent input with row-specific preset options and a demand selector from `0` to `4`.
+- Initial demand scores are generated from the current template values, preserving the existing matrix as the starting option set and default color system.
+- Changing a cell demand updates the cell workload class before any training blocks are assigned.
+- Local web development now targets `http://127.0.0.1:8092` by default, matching the current backend dev script.
+- Verification passed: `npm test -- --watch=false`; `npm run test:node`; `API_BASE_URL=http://127.0.0.1:8092 npm run build`; `go test ./...`; and browser verification at `http://127.0.0.1:4201/`.
+- Browser screenshot saved at `frontend/__screenshots__/cell-intent-controls.png`.
+
+## Follow-up Plan: Inspector Drawer And Cell Selector Cleanup
+
+- [x] Collapse the day inspector by default and expose it through an `Inspector` drawer button.
+- [x] Replace per-cell dual controls with one intent selector per matrix cell.
+- [x] Move demand override to active-cell buttons outside the cell.
+- [x] Replace row-limited datalist behavior with a complete selector option set seeded from existing template values.
+- [x] Verify tests, build, and browser behavior.
+
+## Inspector Drawer And Cell Selector Cleanup Review
+
+- The inspector is now absent from the default page layout, opens as a right-side drawer, and closes cleanly.
+- Each matrix cell now has one native selector for intent; demand is edited through active-cell buttons below the grid.
+- The intent selector now exposes the full template variable set instead of a narrow row-specific datalist.
+- Verification passed: `npm test -- --watch=false`; `npm run test:node`; `API_BASE_URL=http://127.0.0.1:8092 npm run build`; `go test ./...`; and browser verification at `http://127.0.0.1:4201/`.
+- Browser screenshots saved at `frontend/__screenshots__/inspector-drawer-collapsed.png` and `frontend/__screenshots__/single-cell-intent-selector.png`.
+
+## Follow-up Plan: Swim Lane Intent Options
+
+- [x] Define a curated variable set for each swim lane instead of sharing one global variable list.
+- [x] Include the requested `Pace` variables: rest, slow, moderate, fast, max, game.
+- [x] Include `Work / rest` variables built around short, moderate, and long rest intent.
+- [x] Preserve existing template variables within the appropriate swim lanes.
+- [x] Verify lane-specific selector behavior in browser.
+
+## Swim Lane Intent Options Review
+
+- Added swim-lane-specific selector options for pace, work/rest, ball-in-play, contact, volume, tactical, technical, decision-making, speed, S&C, and recovery rows.
+- Rugby-specific lanes `Attack / defense` and `Unit skills` map to their own tactical and technical option sets.
+- Selecting an option still updates the default demand/color via `demandForCellIntent()`, while active-cell demand buttons remain available for overrides.
+- Verification passed: `npm test -- --watch=false`; `npm run test:node`; `API_BASE_URL=http://127.0.0.1:8092 npm run build`; `go test ./...`; and browser verification at `http://127.0.0.1:4201/`.
+- Browser screenshot saved at `frontend/__screenshots__/swim-lane-intent-options.png`.
+
+## Follow-up Plan: Recovery Emphasis Demand Inversion
+
+- [x] Add a regression test for recovery-emphasis demand mapping.
+- [x] Treat `High` recovery emphasis as lower athlete load.
+- [x] Treat `Low` recovery emphasis as higher athlete load.
+- [x] Verify browser cell color behavior.
+
+## Recovery Emphasis Demand Inversion Review
+
+- Recovery-emphasis cells now invert default demand: `High` maps to low/green load, `Moderate` maps to medium/yellow, and `Low` maps to high/red.
+- Other lanes keep their normal load mapping.
+- Verification passed: `npm test -- --watch=false`; `npm run test:node`; `API_BASE_URL=http://127.0.0.1:8092 npm run build`; `go test ./...`; and browser verification at `http://127.0.0.1:4201/`.
+- Browser screenshot saved at `frontend/__screenshots__/recovery-emphasis-demand.png`.
+
 ## Plan
 
 - [x] Create task tracking files for the prototype scope.
@@ -259,10 +383,10 @@ Implement phases 1-7 from `tasks/web-application-production-plan.md` in order, l
 - [x] Phase 1: Production guardrails: env validation, CI, server timeouts, security headers.
 - [x] Phase 2: Web account wiring: Angular auth/API service, account states, credentialed save/load.
 - [x] Phase 3: Auth safety: CSRF, rate limits, password reset.
-- [ ] Phase 4: Planner data safety: server-side plan validation, autosave, optimistic locking.
-- [ ] Phase 5: Versioning: `plan_versions`, restore, duplicate week.
-- [ ] Phase 6: Team model: organizations, memberships, roles.
-- [ ] Phase 7: Sharing and reporting: share links, dedicated PDF/CSV exports.
+- [x] Phase 4: Planner data safety: server-side plan validation, autosave, optimistic locking.
+- [x] Phase 5: Versioning: `plan_versions`, restore, duplicate week.
+- [x] Phase 6: Team model: organizations, memberships, roles.
+- [x] Phase 7: Sharing and reporting: share links, dedicated PDF/CSV exports.
 
 ### Phase 1 Tasks
 
@@ -326,6 +450,87 @@ Implement phases 1-7 from `tasks/web-application-production-plan.md` in order, l
 - Verification passed: `go test ./...` in `backend/`; `npm run test:node`; `npm test -- --watch=false`; `API_BASE_URL=http://127.0.0.1:8081 npm run build`.
 - Browser verification passed with CSRF-protected account save, password reset request returning a development reset token, and a saved account plan visible in the drawer.
 - Browser screenshot saved at `frontend/__screenshots__/phase-3-auth-safety.png`.
+
+### Phase 4 Tasks
+
+- [x] Write failing backend tests for strict-enough planner payload validation.
+- [x] Write failing backend tests for optimistic locking on account plan updates.
+- [x] Write failing frontend tests for lock-version-aware API saves and signed-in autosave.
+- [x] Implement server-side planner payload validation for sport, template, days, grid, blocks, and label presets.
+- [x] Implement plan `lock_version` persistence and stale-update conflict handling.
+- [x] Implement signed-in autosave after an account plan has been explicitly saved or loaded.
+- [x] Run backend tests, frontend tests, build, and browser planner-data-safety verification before Phase 5.
+
+### Phase 4 Review
+
+- Added account plan `lock_version` to API responses, in-memory storage, PostgreSQL scans, and a new migration.
+- Added server-side planner payload validation for allowed sports/templates, complete day/grid/block maps, workload levels, numeric training-block ranges, and bounded labels/notes.
+- Account plan updates now require the current `lock_version`, increment it on success, and return `409` on stale writes.
+- Frontend account saves now `POST` new plans and `PUT` existing account plans with the current lock version.
+- Planner state now starts signed-in autosave only after an account plan has been saved or loaded, keeps server lock metadata outside `plan_json`, and shows account autosave state in the saved-plans drawer.
+- Verification passed: `go test ./...` in `backend/`; `npm test -- --watch=false` in `frontend/`; `API_BASE_URL=http://127.0.0.1:8081 npm run build`.
+- Browser verification passed with backend memory API at `http://127.0.0.1:8081` and frontend at `http://127.0.0.1:4302`: account creation, manual account save, visible `Account autosave: saved`, and autosave after editing a planner cell.
+- Browser screenshot saved at `frontend/__screenshots__/phase-4-data-safety.png`.
+
+### Phase 5 Tasks
+
+- [x] Write failing backend tests for automatic plan version snapshots.
+- [x] Write failing backend tests for listing/restoring plan versions.
+- [x] Write failing backend tests for duplicating an existing week into a new plan.
+- [x] Write failing frontend tests for version/duplicate API calls and planner state restore.
+- [x] Implement `plan_versions` persistence, migration, and API routes.
+- [x] Implement frontend version history, restore, and duplicate controls for account plans.
+- [x] Run backend tests, frontend tests, build, and browser versioning verification before Phase 6.
+
+### Phase 5 Review
+
+- Added `plan_versions` persistence with snapshots on create, update, restore, and duplicate.
+- Added `GET /api/plans/{id}/versions`, `POST /api/plans/{id}/versions/{versionID}/restore`, and `POST /api/plans/{id}/duplicate`.
+- Postgres create/update/restore/duplicate version writes now run transactionally so plan state and history do not drift.
+- Added frontend API calls, saved-plan drawer `History`, `Restore`, and `Duplicate` controls, and state orchestration that keeps lock metadata current after restore/duplicate.
+- Fixed production static serving for `/wails/custom.js` so browser tests no longer receive Angular HTML as a JavaScript file.
+- Disabled Angular critical CSS inlining in production to avoid CSP-blocked inline `onload` handlers.
+- Verification passed: `go test ./...` in `backend/`; `npm run test:node`; `npm test -- --watch=false`; `API_BASE_URL=http://127.0.0.1:8081 npm run build`.
+- Browser verification passed at `http://127.0.0.1:4302`: account creation, account save, version history, restore, duplicate week, copied plan visibility, and no unexpected console errors.
+- Browser screenshot saved at `frontend/__screenshots__/phase-5-versioning.png`.
+
+### Phase 6 Tasks
+
+- [x] Write failing backend tests for default organization creation on registration.
+- [x] Write failing backend tests for organization membership and role-limited plan access.
+- [x] Write failing frontend tests for organization API calls and account-team state.
+- [x] Implement organization and membership persistence with owner/member roles.
+- [x] Scope account plans to an organization while preserving single-user default behavior.
+- [x] Add minimal signed-in team controls for listing and creating organizations.
+- [x] Run backend tests, frontend tests, build, and browser team-model verification before Phase 7.
+
+### Phase 6 Review
+
+- Added organizations and memberships with owner/member roles, automatic `My Team` creation on registration, and organization-scoped account plan access.
+- Added minimal signed-in team controls in the saved-plans drawer for listing and creating teams.
+- Verification passed: `go test ./...` in `backend/`; `npm run test:node`; `npm test -- --watch=false`; `API_BASE_URL=http://127.0.0.1:8081 npm run build`.
+- Browser verification passed at `http://127.0.0.1:4302`: account creation, default `My Team` visibility, `Varsity Staff` team creation, account plan save, and no unexpected console errors.
+- Browser screenshot saved at `frontend/__screenshots__/phase-6-team-model.png`.
+
+### Phase 7 Tasks
+
+- [x] Write failing backend tests for authenticated share-link creation and public read-only share lookup.
+- [x] Write failing backend tests for CSV export of a saved plan.
+- [x] Write failing frontend tests for share-link and CSV export API calls.
+- [x] Implement share-link persistence, API routes, and public read-only lookup.
+- [x] Implement CSV export route and frontend sharing/reporting controls.
+- [x] Run backend tests, frontend tests, build, and browser sharing/reporting verification before final review.
+
+### Phase 7 Review
+
+- Added authenticated share-link creation for account plans and public read-only shared-plan lookup.
+- Share tokens are generated as bearer tokens for the user, but only hashed tokens are stored by backend stores.
+- Added `plan_shares` Postgres migration with `revoked_at` so revocation can be added without a schema rewrite.
+- Added authenticated CSV export for saved plans with workload rows, AU values, and CSV formula-injection escaping for user-controlled text.
+- Added frontend saved-plan controls for `Share` and `CSV`, plus service tests for both API surfaces.
+- Verification passed: `go test ./...` in `backend/`; `npm run test:node`; `npm test -- --watch=false`; `API_BASE_URL=http://127.0.0.1:8081 npm run build`.
+- Browser verification passed at `http://127.0.0.1:4302`: create a training block, create account, save plan, create share link, fetch public read-only shared plan, fetch authenticated CSV export, and no unexpected console errors.
+- Browser screenshot saved at `frontend/__screenshots__/phase-7-sharing-reporting.png`.
 
 ## Railway Two-Service Deployment Review
 

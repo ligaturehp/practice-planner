@@ -1,4 +1,4 @@
-import { BlockLabelPreset, BlockMap, DayId, DemandGrid, PlannerDay, PlannerState, Sport, TemplateId } from '../models/planner.models';
+import { BlockLabelPreset, BlockMap, CellDemandGrid, DayId, DemandGrid, PlannerDay, PlannerState, Sport, TemplateId } from '../models/planner.models';
 
 export const DAYS: PlannerDay[] = [
   { id: 'sat', label: 'SAT', title: 'Recovery' },
@@ -131,6 +131,75 @@ export const TEMPLATES: Record<TemplateId, DemandGrid> = {
   },
 };
 
+export const CELL_INTENT_DEMANDS: Record<string, number> = {
+  '-': 0,
+  off: 0,
+  rest: 0,
+  restore: 1,
+  mobility: 1,
+  easy: 1,
+  slow: 1,
+  none: 1,
+  low: 1,
+  recovery: 1,
+  'full rest': 1,
+  'longer rest': 1,
+  'long rest': 1,
+  'walk-thru': 1,
+  'walk-through': 1,
+  fundamentals: 1,
+  'position skill': 2,
+  moderate: 2,
+  medium: 2,
+  'moderate rest': 2,
+  build: 2,
+  controlled: 2,
+  limited: 2,
+  install: 2,
+  situational: 2,
+  technique: 2,
+  strength: 2,
+  volume: 2,
+  'low sprint': 2,
+  fast: 3,
+  high: 3,
+  'short rest': 3,
+  'short + sharp': 3,
+  '30+ min': 3,
+  '20-30 min': 3,
+  '15-20 min': 2,
+  '10-15 min': 2,
+  '< 10 min': 1,
+  'full contact': 3,
+  'full scheme': 3,
+  competitive: 3,
+  'accel / cod': 3,
+  power: 3,
+  sharp: 3,
+  'reps + speed': 3,
+  'power / speed': 3,
+  max: 4,
+  game: 4,
+  'game contact': 4,
+  activate: 2,
+};
+
+export const SWIM_LANE_INTENT_OPTIONS: Record<string, string[]> = {
+  Pace: ['Rest', 'Slow', 'Moderate', 'Fast', 'Max', 'Game'],
+  'Work / rest': ['-', 'Full rest', 'Long rest', 'Longer rest', 'Moderate rest', 'Short rest', 'Short + sharp'],
+  'Ball in play': ['-', '< 10 min', '10-15 min', '15-20 min', '20-30 min', '30+ min', 'Game'],
+  Contact: ['-', 'None', 'Controlled', 'Limited', 'Full contact', 'Game contact'],
+  Volume: ['-', 'Low', 'Moderate', 'High', 'Game'],
+  'Tactical focus': ['Restore', 'Walk-thru', 'Install', 'Situational', 'Full scheme', 'Reps + speed', 'Game'],
+  'Attack / defense': ['Restore', 'Walk-thru', 'Install', 'Situational', 'Full scheme', 'Reps + speed', 'Game'],
+  'Technical skill': ['Mobility', 'Fundamentals', 'Position skill', 'Technique', 'Competitive', 'Sharp', 'Game'],
+  'Unit skills': ['Mobility', 'Fundamentals', 'Position skill', 'Technique', 'Competitive', 'Sharp', 'Game'],
+  'Decision making': ['-', 'Low', 'Medium', 'Moderate', 'High', 'Game'],
+  'Speed exposure': ['None', 'Build', 'Low sprint', 'Accel / COD', 'Max speed', 'Game'],
+  'S&C emphasis': ['Recovery', 'Strength', 'Power', 'Volume', 'Power / speed', 'Activate'],
+  'Recovery emphasis': ['-', 'Low', 'Moderate', 'High'],
+};
+
 export function createGrid(templateId: TemplateId): DemandGrid {
   const template = TEMPLATES[templateId];
 
@@ -138,6 +207,33 @@ export function createGrid(templateId: TemplateId): DemandGrid {
     grid[dayId] = [...template[dayId]];
     return grid;
   }, {} as DemandGrid);
+}
+
+export function demandForCellIntent(value: string, label = ''): number {
+  const normalized = value.trim().toLowerCase();
+  if (label === 'Recovery emphasis') {
+    if (normalized === 'high') return 1;
+    if (normalized === 'moderate' || normalized === 'medium') return 2;
+    if (normalized === 'low') return 3;
+  }
+  if (CELL_INTENT_DEMANDS[normalized] !== undefined) {
+    return CELL_INTENT_DEMANDS[normalized];
+  }
+  if (normalized.includes('game')) return 4;
+  if (normalized.includes('full') || normalized.includes('high')) return 3;
+  if (normalized.includes('moderate') || normalized.includes('medium')) return 2;
+  if (normalized.includes('low') || normalized.includes('easy') || normalized.includes('recovery')) return 1;
+  return 0;
+}
+
+export function createCellDemands(templateId: TemplateId, sport: Sport = 'football'): CellDemandGrid {
+  const grid = createGrid(templateId);
+  const rowLabels = rowLabelsForSport(sport);
+
+  return DAY_IDS.reduce((demands, dayId) => {
+    demands[dayId] = grid[dayId].map((value, index) => demandForCellIntent(value, rowLabels[index]));
+    return demands;
+  }, {} as CellDemandGrid);
 }
 
 export function createEmptyBlocks(): BlockMap {
@@ -159,6 +255,10 @@ export function rowLabelsForSport(sport: Sport): string[] {
   return sport === 'rugby' ? [...RUGBY_ROW_LABELS] : [...FOOTBALL_ROW_LABELS];
 }
 
+export function cellIntentOptions(label: string): string[] {
+  return SWIM_LANE_INTENT_OPTIONS[label] || ['-', 'Low', 'Moderate', 'High', 'Game'];
+}
+
 export function createInitialState(): PlannerState {
   const sport: Sport = 'football';
   const template: TemplateId = 'gameFriday';
@@ -170,10 +270,12 @@ export function createInitialState(): PlannerState {
     days: DAYS.map((day) => ({ ...day })),
     rowLabels: rowLabelsForSport(sport),
     grid: createGrid(template),
+    cellDemands: createCellDemands(template, sport),
     blocks: createEmptyBlocks(),
     blockLabelPresets: createBlockLabelPresets(),
     blockDialogOpen: false,
     labelConfigOpen: false,
+    inspectorOpen: false,
     savedPlansOpen: false,
   };
 }

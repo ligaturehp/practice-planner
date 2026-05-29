@@ -12,3 +12,5 @@
 - Keyword-driven load guidance must remain secondary once a coach enters planned AU; coach-entered AU is the primary source of truth for day-load evaluation.
 - If a workload class is present in the DOM, make sure component-specific CSS selectors do not mask it with a stronger default background.
 - For large production migrations, split frontend and backend into concurrent worker-owned scopes early, then reserve the main thread for integration and verification.
+- When Railway styling or functionality regresses, verify the exact local serving mode and asset pipeline before assuming unit tests are enough; run the backend and frontend together locally and inspect the browser-rendered app before declaring deployment-ready.
+- Do not expose every matrix-cell demand option in every cell at rest; keep the visual demand link visible, then reveal the full demand choice set only for the active cell to avoid clutter.

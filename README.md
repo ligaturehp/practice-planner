@@ -21,10 +21,11 @@ npm start
 Backend:
 
 ```sh
-cd backend
-go mod download
-DATABASE_URL="postgres://..." SESSION_SECRET="dev-secret-change-me" ALLOWED_ORIGINS="http://localhost:4200" go run ./cmd/api
+createdb -h localhost -p 5432 practice_planner_dev
+./scripts/run-backend-dev.sh
 ```
+
+The local script defaults to `postgres://josephstich@localhost:5432/practice_planner_dev?sslmode=disable` and applies embedded migrations on startup. Override `DATABASE_URL`, `SESSION_SECRET`, `ALLOWED_ORIGINS`, or `PORT` in the shell when needed.
 
 ## Railway Deployment
 

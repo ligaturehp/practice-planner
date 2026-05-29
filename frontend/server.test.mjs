@@ -46,3 +46,15 @@ test('frontend server applies browser hardening headers', async () => {
   assert.equal(response.headers.get('x-frame-options'), 'DENY');
   assert.match(response.headers.get('content-security-policy') || '', /default-src 'self'/);
 });
+
+test('frontend server returns an empty Wails browser shim instead of SPA HTML', async () => {
+  const response = await fetch(`${baseUrl}/wails/custom.js`);
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get('content-type') || '', /text\/javascript/);
+  assert.equal(await response.text(), '');
+
+  const runtimeResponse = await fetch(`${baseUrl}/wails/runtime`);
+  assert.equal(runtimeResponse.status, 200);
+  assert.match(runtimeResponse.headers.get('content-type') || '', /text\/javascript/);
+  assert.equal(await runtimeResponse.text(), '');
+});

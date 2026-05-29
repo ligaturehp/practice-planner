@@ -16,6 +16,17 @@
           <span>Plans save across devices.</span>
         </div>
         <button class="text-button" type="button" (click)="logout()">Sign out</button>
+        <div class="team-panel">
+          <p class="eyebrow">Teams</p>
+          @for (organization of planner.organizations(); track organization.id) {
+            <span>{{ organization.name }} · {{ organization.role }}</span>
+          }
+          <label>
+            <span>Team name</span>
+            <input type="text" name="organizationName" [(ngModel)]="organizationName" />
+          </label>
+          <button class="text-button" type="button" (click)="createOrganization()">Create Team</button>
+        </div>
       } @else {
         <div>
           <p class="eyebrow">Guest Draft</p>
@@ -62,6 +73,9 @@
     <button class="primary-button" type="button" (click)="savePlan()">
       Save Plan
     </button>
+    @if (planner.auth.status() === 'signed-in') {
+      <p class="block-notes">Account autosave: {{ autosaveLabel() }}</p>
+    }
     @if (status) {
       <p class="block-notes">{{ status }}</p>
     }
@@ -85,8 +99,28 @@
           </div>
           <div class="saved-plan-actions">
             <button class="text-button" type="button" (click)="planner.loadPlan(plan)">Load</button>
+            @if (planner.auth.status() === 'signed-in') {
+              <button class="text-button" type="button" (click)="showHistory(plan.id)">History</button>
+              <button class="text-button" type="button" (click)="duplicatePlan(plan.id, plan.name)">Duplicate</button>
+              <button class="text-button" type="button" (click)="createShareLink(plan.id)">Share</button>
+              <a class="text-button" [href]="planner.exportCSVUrl(plan.id)" target="_blank" rel="noopener">CSV</a>
+            }
             <button class="remove-block" type="button" (click)="deletePlan(plan.id)">Delete</button>
           </div>
+          @if (planner.planShares()[plan.id]; as share) {
+            <p class="block-notes">Read-only link: {{ share.url }}</p>
+          }
+          @if (historyPlanId === plan.id) {
+            <div class="version-list">
+              @for (version of planner.planVersions(); track version.id) {
+                <button class="text-button" type="button" (click)="restoreVersion(plan.id, version.id)">
+                  Restore {{ version.updatedAt | date: 'short' }}
+                </button>
+              } @empty {
+                <p class="block-notes">No version history yet.</p>
+              }
+            </div>
+          }
         </article>
       }
     </div>

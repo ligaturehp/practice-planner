@@ -21,17 +21,87 @@
           <th scope="row" class="row-label">{{ label }}</th>
           @for (day of planner.state().days; track day.id) {
             @let cellValue = planner.state().grid[day.id][rowIndex];
+            @let cellDemand = planner.state().cellDemands[day.id][rowIndex];
             @let blocks = cellBlocks(day.id, label);
             @let blockLevel = planner.blockCellAuLevels()[day.id + ':' + label];
-            <td class="demand-cell {{ levelClass(cellValue, blockLevel) }}" [class.has-blocks]="blocks.length">
-              <textarea
-                class="cell-editor"
-                rows="2"
-                [ngModel]="cellValue"
-                (focus)="planner.selectDay(day.id)"
-                (ngModelChange)="planner.updateCell(day.id, rowIndex, $event)"
-                [attr.aria-label]="day.label + ' ' + label"
-              ></textarea>
+            <td class="demand-cell {{ levelClass(cellValue, cellDemand, blockLevel) }}" [class.has-blocks]="blocks.length" [class.is-selected]="isSelectedCell(day.id, rowIndex)">
+              @if (isSelectedCell(day.id, rowIndex)) {
+                <div class="cell-editor is-active">
+                  <div class="cell-editor-topline">
+                    <span class="cell-demand-badge demand-badge-{{ demandBand(cellDemand) }}">{{ demandLabel(cellDemand) }}</span>
+                    <button
+                      type="button"
+                      class="cell-collapse-button"
+                      (mousedown)="$event.preventDefault()"
+                      (click)="collapseCell(day.id, rowIndex)"
+                      [attr.aria-label]="'Collapse ' + day.label + ' ' + label + ' editor'"
+                    >
+                      Done
+                    </button>
+                  </div>
+
+                  <label class="cell-editor-label">
+                    <span class="sr-only">{{ day.label }} {{ label }} intent</span>
+                    <input
+                      class="cell-intent-input"
+                      [ngModel]="intentDraft"
+                      (ngModelChange)="updateIntentDraft($event)"
+                      (focus)="selectCell(day.id, rowIndex)"
+                      (blur)="commitIntent(day.id, rowIndex, intentDraft)"
+                      (keydown.enter)="commitIntent(day.id, rowIndex, intentDraft)"
+                      (keydown.escape)="collapseCell(day.id, rowIndex)"
+                      [attr.aria-label]="day.label + ' ' + label + ' intent'"
+                      autocomplete="off"
+                    />
+                  </label>
+
+                  <div class="cell-option-list" role="listbox" [attr.aria-label]="day.label + ' ' + label + ' intent options'">
+                    @for (option of filteredIntentOptions(label); track option) {
+                      @let optionDemand = demandForIntent(option, label);
+                      <button
+                        type="button"
+                        class="cell-option-button"
+                        (mousedown)="$event.preventDefault()"
+                        (click)="commitIntent(day.id, rowIndex, option)"
+                        [attr.aria-label]="day.label + ' ' + label + ' intent ' + option + ' maps to ' + demandLabel(optionDemand)"
+                      >
+                        <span class="option-dot demand-badge-{{ demandBand(optionDemand) }}"></span>
+                        <span>{{ option }}</span>
+                        <strong>{{ demandLabel(optionDemand) }}</strong>
+                      </button>
+                    } @empty {
+                      <div class="cell-option-empty">Custom intent</div>
+                    }
+                  </div>
+
+                  <div class="cell-demand-controls" [attr.aria-label]="day.label + ' ' + label + ' demand override'">
+                    @for (demand of demandOptions; track demand.value) {
+                      <button
+                        type="button"
+                        class="cell-demand-button demand-option-{{ demandBand(demand.value) }}"
+                        [class.is-active]="cellDemand === demand.value"
+                        [attr.data-demand-value]="demand.value"
+                        (focus)="selectCell(day.id, rowIndex)"
+                        (click)="updateCellDemand(day.id, rowIndex, demand.value)"
+                        [attr.aria-label]="day.label + ' ' + label + ' demand ' + demand.label"
+                      >
+                        {{ demand.label }}
+                      </button>
+                    }
+                  </div>
+                </div>
+              } @else {
+                <button
+                  type="button"
+                  class="cell-intent-trigger"
+                  (click)="selectCell(day.id, rowIndex)"
+                  (focus)="selectCell(day.id, rowIndex)"
+                  [attr.aria-label]="day.label + ' ' + label + ' intent ' + cellValue + ', demand ' + demandLabel(cellDemand)"
+                >
+                  <span class="cell-intent-text">{{ cellValue }}</span>
+                  <span class="cell-demand-badge demand-badge-{{ demandBand(cellDemand) }}">{{ demandLabel(cellDemand) }}</span>
+                </button>
+              }
 
               @if (blocks.length) {
                 <div class="cell-block-stack">

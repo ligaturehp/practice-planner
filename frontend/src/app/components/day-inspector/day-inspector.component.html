@@ -1,13 +1,18 @@
-<aside class="block-panel" aria-labelledby="blockPanelTitle">
-  <div class="section-heading compact panel-title">
-    <div>
-      <p class="eyebrow">Inspector</p>
-      <h2 id="blockPanelTitle">Day Planning</h2>
+@if (planner.state().inspectorOpen) {
+  <div class="drawer-backdrop" (click)="planner.closeInspector()"></div>
+  <aside class="block-panel inspector-drawer" aria-labelledby="blockPanelTitle">
+    <div class="section-heading compact panel-title">
+      <div>
+        <p class="eyebrow">Inspector</p>
+        <h2 id="blockPanelTitle">Day Planning</h2>
+      </div>
+      <div class="drawer-title-actions">
+        <span class="selected-day">{{ planner.selectedDay().label }}</span>
+        <button class="text-button" type="button" (click)="planner.closeInspector()">Close</button>
+      </div>
     </div>
-    <span class="selected-day">{{ planner.selectedDay().label }}</span>
-  </div>
 
-  <section class="panel-section day-overview" aria-labelledby="dayOverviewTitle">
+    <section class="panel-section day-overview" aria-labelledby="dayOverviewTitle">
     <div class="panel-section-heading">
       <div>
         <p class="eyebrow">Overall day</p>
@@ -42,9 +47,9 @@
         <strong>{{ planner.selectedDaySummary().exposureCount }}</strong>
       </div>
     </div>
-  </section>
+    </section>
 
-  <section class="panel-section current-blocks" aria-labelledby="currentBlocksTitle">
+    <section class="panel-section current-blocks" aria-labelledby="currentBlocksTitle">
     <div class="block-list-heading">
       <div>
         <p class="eyebrow">Assigned work</p>
@@ -90,17 +95,17 @@
         </article>
       }
     </div>
-  </section>
+    </section>
 
-  <section class="panel-section add-block-action" aria-labelledby="addBlockActionTitle">
+    <section class="panel-section add-block-action" aria-labelledby="addBlockActionTitle">
     <div>
       <p class="eyebrow">Block detail</p>
       <h3 id="addBlockActionTitle">Add Training Block</h3>
     </div>
     <button class="primary-button" type="button" (click)="planner.openBlockDialog()">New Block</button>
-  </section>
+    </section>
 
-  <section class="panel-section label-config" aria-labelledby="labelConfigTitle">
+    <section class="panel-section label-config" aria-labelledby="labelConfigTitle">
     <div class="block-list-heading">
       <div>
         <p class="eyebrow">Block labels</p>
@@ -180,5 +185,6 @@
         }
       </div>
     }
-  </section>
-</aside>
+    </section>
+  </aside>
+}

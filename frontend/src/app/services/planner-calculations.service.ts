@@ -51,11 +51,23 @@ export class PlannerCalculationsService {
     return 'neutral';
   }
 
-  getDayKeywordScore(state: Pick<PlannerState, 'grid'>, dayId: DayId): number {
-    return state.grid[dayId].reduce((sum, value) => sum + LEVEL_SCORES[this.classifyCell(value)], 0);
+  classifyCellDemand(demand: number): WorkloadBand {
+    if (demand >= 4) return 'max';
+    if (demand >= 3) return 'high';
+    if (demand >= 2) return 'medium';
+    if (demand >= 1) return 'low';
+    return 'neutral';
   }
 
-  getDayEvaluationScore(state: Pick<PlannerState, 'blocks' | 'grid'>, dayId: DayId): number {
+  getDayKeywordScore(state: Pick<PlannerState, 'grid'> & Partial<Pick<PlannerState, 'cellDemands'>>, dayId: DayId): number {
+    return state.grid[dayId].reduce((sum, value, index) => {
+      const demand = state.cellDemands?.[dayId]?.[index];
+      const band = demand === undefined ? this.classifyCell(value) : this.classifyCellDemand(demand);
+      return sum + LEVEL_SCORES[band];
+    }, 0);
+  }
+
+  getDayEvaluationScore(state: Pick<PlannerState, 'blocks' | 'grid'> & Partial<Pick<PlannerState, 'cellDemands'>>, dayId: DayId): number {
     const dayAu = this.getDayAu(state, dayId);
     const keywordScore = this.getDayKeywordScore(state, dayId);
 
@@ -66,7 +78,7 @@ export class PlannerCalculationsService {
     return keywordScore * 20;
   }
 
-  getDayLevels(state: Pick<PlannerState, 'blocks' | 'grid'>): Record<DayId, WorkloadLabel> {
+  getDayLevels(state: Pick<PlannerState, 'blocks' | 'grid'> & Partial<Pick<PlannerState, 'cellDemands'>>): Record<DayId, WorkloadLabel> {
     const totals = DAY_IDS.map((id) => ({ id, score: this.getDayEvaluationScore(state, id) }));
     const nonZero = totals.filter((item) => item.score > 0).sort((a, b) => a.score - b.score);
 

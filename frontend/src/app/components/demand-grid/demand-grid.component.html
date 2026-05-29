@@ -3,7 +3,7 @@
     <thead>
       <tr>
         <th scope="col" class="guide-cell">Guide</th>
-        @for (day of planner.state().days; track day.id) {
+        @for (day of planner.displayDays(); track day.id) {
           <th scope="col" class="day-head level-{{ planner.dayLevels()[day.id].toLowerCase() }}" [class.is-selected]="day.id === planner.state().selectedDay">
             <button type="button" (click)="planner.selectDay(day.id)">
               <span class="day-name">{{ day.label }}</span>
@@ -19,7 +19,7 @@
       @for (label of planner.state().rowLabels; track label; let rowIndex = $index) {
         <tr>
           <th scope="row" class="row-label">{{ label }}</th>
-          @for (day of planner.state().days; track day.id) {
+          @for (day of planner.displayDays(); track day.id) {
             @let cellValue = planner.state().grid[day.id][rowIndex];
             @let cellDemand = planner.state().cellDemands[day.id][rowIndex];
             @let blocks = cellBlocks(day.id, label);

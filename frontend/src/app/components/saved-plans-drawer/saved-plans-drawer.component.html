@@ -1,128 +1,190 @@
 @if (planner.state().savedPlansOpen) {
-  <aside class="saved-drawer" aria-labelledby="savedPlansTitle">
+  <aside class="saved-drawer profile-drawer" aria-labelledby="profileTitle">
     <div class="panel-section-heading">
       <div>
-        <p class="eyebrow">Plans</p>
-        <h3 id="savedPlansTitle">Saved Plans</h3>
+        <p class="eyebrow">Profile</p>
+        <h3 id="profileTitle">Account Settings</h3>
       </div>
       <button class="text-button" type="button" (click)="planner.toggleSavedPlans()">Close</button>
     </div>
 
-    <section class="account-panel" aria-label="Account">
-      @if (planner.auth.status() === 'signed-in' && planner.auth.user(); as user) {
+    <nav class="profile-tabs" aria-label="Profile sections">
+      @for (section of profileSections; track section.id) {
+        <button
+          type="button"
+          class="profile-tab"
+          [class.is-active]="activeSection() === section.id"
+          (click)="setActiveSection(section.id)"
+        >
+          {{ section.label }}
+        </button>
+      }
+    </nav>
+
+    @if (activeSection() === 'account') {
+      <section class="account-panel" aria-label="Account">
+        @if (planner.auth.status() === 'signed-in' && planner.auth.user(); as user) {
+          <div>
+            <p class="eyebrow">Account</p>
+            <strong>{{ user.email }}</strong>
+            <span>Plans and preferences save across devices.</span>
+          </div>
+          <button class="text-button wide-button" type="button" (click)="logout()">Sign out</button>
+        } @else {
+          <div>
+            <p class="eyebrow">Guest Draft</p>
+            <strong>Saved in this browser</strong>
+            <span>Create an account before you rely on cross-device saves.</span>
+          </div>
+          <form class="account-form" (ngSubmit)="submitAccount()">
+            <label>
+              <span>Email</span>
+              <input type="email" name="email" [(ngModel)]="email" autocomplete="email" />
+            </label>
+            <label>
+              <span>Password</span>
+              <input
+                type="password"
+                name="password"
+                [(ngModel)]="password"
+                autocomplete="current-password"
+              />
+            </label>
+            <div class="saved-plan-actions">
+              <button class="primary-button" type="submit">
+                {{ authMode === 'register' ? 'Create Account' : 'Sign In' }}
+              </button>
+              <button
+                class="text-button"
+                type="button"
+                (click)="authMode = authMode === 'register' ? 'login' : 'register'"
+              >
+                {{ authMode === 'register' ? 'Use Sign In' : 'Create Account' }}
+              </button>
+            </div>
+            @if (planner.auth.error()) {
+              <p class="block-notes">{{ planner.auth.error() }}</p>
+            }
+          </form>
+        }
+      </section>
+    }
+
+    @if (activeSection() === 'teams') {
+      <section class="account-panel" aria-label="Teams">
         <div>
-          <p class="eyebrow">Account</p>
-          <strong>{{ user.email }}</strong>
-          <span>Plans save across devices.</span>
-        </div>
-        <button class="text-button" type="button" (click)="logout()">Sign out</button>
-        <div class="team-panel">
           <p class="eyebrow">Teams</p>
-          @for (organization of planner.organizations(); track organization.id) {
-            <span>{{ organization.name }} · {{ organization.role }}</span>
+          @if (planner.auth.status() === 'signed-in') {
+            @for (organization of planner.organizations(); track organization.id) {
+              <span>{{ organization.name }} · {{ organization.role }}</span>
+            } @empty {
+              <span>No teams available.</span>
+            }
+          } @else {
+            <span>Sign in to manage teams.</span>
           }
+        </div>
+        @if (planner.auth.status() === 'signed-in') {
           <label>
             <span>Team name</span>
             <input type="text" name="organizationName" [(ngModel)]="organizationName" />
           </label>
-          <button class="text-button" type="button" (click)="createOrganization()">Create Team</button>
-        </div>
-      } @else {
-        <div>
-          <p class="eyebrow">Guest Draft</p>
-          <strong>Saved in this browser</strong>
-          <span>Sign in to keep plans with your account.</span>
-        </div>
-        <form class="account-form" (ngSubmit)="submitAccount()">
-          <label>
-            <span>Email</span>
-            <input type="email" name="email" [(ngModel)]="email" autocomplete="email" />
-          </label>
-          <label>
-            <span>Password</span>
-            <input
-              type="password"
-              name="password"
-              [(ngModel)]="password"
-              autocomplete="current-password"
-            />
-          </label>
-          <div class="saved-plan-actions">
-            <button class="primary-button" type="submit">
-              {{ authMode === 'register' ? 'Create Account' : 'Sign In' }}
-            </button>
-            <button
-              class="text-button"
-              type="button"
-              (click)="authMode = authMode === 'register' ? 'login' : 'register'"
-            >
-              {{ authMode === 'register' ? 'Use Sign In' : 'Create Account' }}
-            </button>
-          </div>
-          @if (planner.auth.error()) {
-            <p class="block-notes">{{ planner.auth.error() }}</p>
-          }
-        </form>
-      }
-    </section>
-
-    <label class="day-focus-field">
-      <span>Plan name</span>
-      <input type="text" [(ngModel)]="planName" />
-    </label>
-    <button class="primary-button" type="button" (click)="savePlan()">
-      Save Plan
-    </button>
-    @if (planner.auth.status() === 'signed-in') {
-      <p class="block-notes">Account autosave: {{ autosaveLabel() }}</p>
+          <button class="text-button wide-button" type="button" (click)="createOrganization()">Create Team</button>
+        }
+      </section>
     }
+
+    @if (activeSection() === 'plans') {
+      <section class="profile-section" aria-label="Plans">
+        <label class="day-focus-field">
+          <span>Plan name</span>
+          <input type="text" [(ngModel)]="planName" />
+        </label>
+        <button class="primary-button" type="button" (click)="savePlan()">
+          Save Plan
+        </button>
+        @if (planner.auth.status() === 'signed-in') {
+          <p class="block-notes">Account autosave: {{ autosaveLabel() }}</p>
+        }
+
+        <div class="saved-plan-list">
+          @if (!planner.savedPlans().length) {
+            <p class="block-notes">
+              {{
+                planner.auth.status() === 'signed-in'
+                  ? 'No account plans saved yet.'
+                  : 'No guest drafts saved in this browser.'
+              }}
+            </p>
+          }
+
+          @for (plan of planner.savedPlans(); track plan.id) {
+            <article class="saved-plan">
+              <div>
+                <strong>{{ plan.name }}</strong>
+                <span>{{ plan.updatedAt | date: 'short' }}</span>
+              </div>
+              <div class="saved-plan-actions">
+                <button class="text-button" type="button" (click)="planner.loadPlan(plan)">Load</button>
+                @if (planner.auth.status() === 'signed-in') {
+                  <button class="text-button" type="button" (click)="showHistory(plan.id)">History</button>
+                  <button class="text-button" type="button" (click)="duplicatePlan(plan.id, plan.name)">Duplicate</button>
+                  <button class="text-button" type="button" (click)="createShareLink(plan.id)">Share</button>
+                  <a class="text-button" [href]="planner.exportCSVUrl(plan.id)" target="_blank" rel="noopener">CSV</a>
+                }
+                <button class="remove-block" type="button" (click)="deletePlan(plan.id)">Delete</button>
+              </div>
+              @if (planner.planShares()[plan.id]; as share) {
+                <p class="block-notes">Read-only link: {{ share.url }}</p>
+              }
+              @if (historyPlanId === plan.id) {
+                <div class="version-list">
+                  @for (version of planner.planVersions(); track version.id) {
+                    <button class="text-button" type="button" (click)="restoreVersion(plan.id, version.id)">
+                      Restore {{ version.updatedAt | date: 'short' }}
+                    </button>
+                  } @empty {
+                    <p class="block-notes">No version history yet.</p>
+                  }
+                </div>
+              }
+            </article>
+          }
+        </div>
+      </section>
+    }
+
+    @if (activeSection() === 'preferences') {
+      <section class="profile-section" aria-label="Preferences">
+        <div class="preference-group">
+          <div>
+            <p class="eyebrow">Week Order</p>
+            <strong>Default board sequence</strong>
+            <p class="block-notes">Monday first is the default. Game day last keeps the board building toward the selected template's game day.</p>
+          </div>
+          <div class="segmented-control" role="group" aria-label="Week order">
+            @for (option of weekOrderOptions; track option.value) {
+              <button
+                type="button"
+                [class.is-active]="planner.userPreferences().weekOrder === option.value"
+                (click)="updateWeekOrder(option.value)"
+              >
+                <span>{{ option.label }}</span>
+                <small>{{ option.description }}</small>
+              </button>
+            }
+          </div>
+          <div class="week-preview" aria-label="Current week order preview">
+            @for (day of planner.displayDays(); track day.id) {
+              <span>{{ day.label }}</span>
+            }
+          </div>
+        </div>
+      </section>
+    }
+
     @if (status) {
       <p class="block-notes">{{ status }}</p>
     }
-
-    <div class="saved-plan-list">
-      @if (!planner.savedPlans().length) {
-        <p class="block-notes">
-          {{
-            planner.auth.status() === 'signed-in'
-              ? 'No account plans saved yet.'
-              : 'No guest drafts saved in this browser.'
-          }}
-        </p>
-      }
-
-      @for (plan of planner.savedPlans(); track plan.id) {
-        <article class="saved-plan">
-          <div>
-            <strong>{{ plan.name }}</strong>
-            <span>{{ plan.updatedAt | date: 'short' }}</span>
-          </div>
-          <div class="saved-plan-actions">
-            <button class="text-button" type="button" (click)="planner.loadPlan(plan)">Load</button>
-            @if (planner.auth.status() === 'signed-in') {
-              <button class="text-button" type="button" (click)="showHistory(plan.id)">History</button>
-              <button class="text-button" type="button" (click)="duplicatePlan(plan.id, plan.name)">Duplicate</button>
-              <button class="text-button" type="button" (click)="createShareLink(plan.id)">Share</button>
-              <a class="text-button" [href]="planner.exportCSVUrl(plan.id)" target="_blank" rel="noopener">CSV</a>
-            }
-            <button class="remove-block" type="button" (click)="deletePlan(plan.id)">Delete</button>
-          </div>
-          @if (planner.planShares()[plan.id]; as share) {
-            <p class="block-notes">Read-only link: {{ share.url }}</p>
-          }
-          @if (historyPlanId === plan.id) {
-            <div class="version-list">
-              @for (version of planner.planVersions(); track version.id) {
-                <button class="text-button" type="button" (click)="restoreVersion(plan.id, version.id)">
-                  Restore {{ version.updatedAt | date: 'short' }}
-                </button>
-              } @empty {
-                <p class="block-notes">No version history yet.</p>
-              }
-            </div>
-          }
-        </article>
-      }
-    </div>
   </aside>
 }

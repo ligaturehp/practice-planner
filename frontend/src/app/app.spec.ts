@@ -21,6 +21,7 @@ describe('App', () => {
     await fixture.whenStable();
     const compiled = fixture.nativeElement as HTMLElement;
     expect(compiled.querySelector('h1')?.textContent).toContain('Weekly Demand Map');
+    expect(compiled.textContent).toContain('Day Details');
     expect(compiled.querySelector('.demand-grid')).toBeTruthy();
   });
 });

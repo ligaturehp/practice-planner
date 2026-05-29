@@ -2,12 +2,14 @@ package app
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestHealthCheck(t *testing.T) {
@@ -76,6 +78,20 @@ func TestRegisterMeAndLogoutSessionFlow(t *testing.T) {
 	}
 }
 
+func TestRegisterDoesNotKeepUserWhenSessionCreationFails(t *testing.T) {
+	store := &sessionFailingStore{MemoryStore: NewMemoryStore()}
+	handler := newTestHandler(store)
+
+	res := performJSON(handler, http.MethodPost, "/api/auth/register", `{"email":"partial@example.com","password":"strong-password"}`, nil)
+	if res.Code != http.StatusInternalServerError {
+		t.Fatalf("expected register failure 500, got %d: %s", res.Code, res.Body.String())
+	}
+
+	if _, err := store.GetUserByEmail(t.Context(), "partial@example.com"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("expected failed registration to leave no login-capable user, got err %v", err)
+	}
+}
+
 func TestLoginRejectsBadPassword(t *testing.T) {
 	store := NewMemoryStore()
 	handler := newTestHandler(store)
@@ -95,6 +111,43 @@ func TestLoginRejectsBadPassword(t *testing.T) {
 		t.Fatalf("expected login 200, got %d: %s", res.Code, res.Body.String())
 	}
 	findSessionCookie(t, res.Result())
+}
+
+func TestUserPreferencesDefaultAndUpdate(t *testing.T) {
+	store := NewMemoryStore()
+	handler := newTestHandler(store)
+	cookie := registerUser(t, handler, "preferences@example.com")
+
+	res := performJSON(handler, http.MethodGet, "/api/profile/preferences", "", cookie)
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected preferences 200, got %d: %s", res.Code, res.Body.String())
+	}
+	var body struct {
+		Preferences UserPreferences `json:"preferences"`
+	}
+	if err := json.Unmarshal(res.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode preferences response: %v", err)
+	}
+	if body.Preferences.WeekOrder != "mondayFirst" {
+		t.Fatalf("expected monday-first default, got %q", body.Preferences.WeekOrder)
+	}
+
+	csrf := fetchCSRFToken(t, handler, cookie)
+	res = performJSONWithHeaders(handler, http.MethodPut, "/api/profile/preferences", `{"week_order":"sundayFirst"}`, cookie, map[string]string{"X-CSRF-Token": csrf})
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected preferences update 200, got %d: %s", res.Code, res.Body.String())
+	}
+	if err := json.Unmarshal(res.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode updated preferences response: %v", err)
+	}
+	if body.Preferences.WeekOrder != "sundayFirst" {
+		t.Fatalf("expected sunday-first preference, got %q", body.Preferences.WeekOrder)
+	}
+
+	res = performJSONWithHeaders(handler, http.MethodPut, "/api/profile/preferences", `{"week_order":"custom"}`, cookie, map[string]string{"X-CSRF-Token": csrf})
+	if res.Code != http.StatusBadRequest {
+		t.Fatalf("expected invalid preference 400, got %d", res.Code)
+	}
 }
 
 func TestPlansRequireAuthenticationAndValidateInput(t *testing.T) {
@@ -602,6 +655,18 @@ func findSessionCookie(t *testing.T, res *http.Response) *http.Cookie {
 	}
 	t.Fatalf("missing %s cookie", sessionCookieName)
 	return nil
+}
+
+type sessionFailingStore struct {
+	*MemoryStore
+}
+
+func (s *sessionFailingStore) CreateSession(context.Context, string, string, time.Time) (Session, error) {
+	return Session{}, errors.New("session store unavailable")
+}
+
+func (s *sessionFailingStore) CreateUserWithSession(context.Context, string, string, string, time.Time) (User, error) {
+	return User{}, errors.New("session store unavailable")
 }
 
 func decodePlan(t *testing.T, body []byte) Plan {

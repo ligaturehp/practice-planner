@@ -3,6 +3,7 @@ import { createInitialState } from '../data/planner-defaults';
 import { ApiAuthService } from './api-auth.service';
 import { ApiOrganizationService } from './api-organization.service';
 import { ApiPlanStorageService } from './api-plan-storage.service';
+import { ApiUserPreferencesService } from './api-user-preferences.service';
 import { DesktopPlanStorageService } from './desktop-plan-storage.service';
 import { PlannerStateService } from './planner-state.service';
 import { vi } from 'vitest';
@@ -17,6 +18,7 @@ describe('PlannerStateService autosave', () => {
     register: ReturnType<typeof vi.fn>;
     logout: ReturnType<typeof vi.fn>;
   };
+  let userPreferencesApi: Pick<ApiUserPreferencesService, 'getPreferences' | 'updateWeekOrder'>;
 
   beforeEach(() => {
     vi.useRealTimers();
@@ -39,13 +41,32 @@ describe('PlannerStateService autosave', () => {
       register: vi.fn().mockResolvedValue(undefined),
       logout: vi.fn().mockResolvedValue(undefined),
     };
+    userPreferencesApi = {
+      getPreferences: vi
+        .fn()
+        .mockResolvedValue({ weekOrder: 'mondayFirst', updatedAt: '2026-05-29T00:00:00Z' }),
+      updateWeekOrder: vi.fn(async (weekOrder) => ({
+        weekOrder,
+        updatedAt: '2026-05-29T00:00:00Z',
+      })),
+    };
 
     TestBed.configureTestingModule({
       providers: [
         { provide: ApiPlanStorageService, useValue: apiStorage },
-        { provide: ApiOrganizationService, useValue: { listOrganizations: vi.fn().mockResolvedValue([]), createOrganization: vi.fn() } },
+        {
+          provide: ApiOrganizationService,
+          useValue: {
+            listOrganizations: vi.fn().mockResolvedValue([]),
+            createOrganization: vi.fn(),
+          },
+        },
+        { provide: ApiUserPreferencesService, useValue: userPreferencesApi },
         { provide: ApiAuthService, useValue: auth },
-        { provide: DesktopPlanStorageService, useValue: { listPlans: vi.fn(), savePlan: vi.fn(), deletePlan: vi.fn() } },
+        {
+          provide: DesktopPlanStorageService,
+          useValue: { listPlans: vi.fn(), savePlan: vi.fn(), deletePlan: vi.fn() },
+        },
       ],
     });
 
@@ -101,6 +122,24 @@ describe('PlannerStateService autosave', () => {
     expect(service.state().inspectorOpen).toBe(false);
   });
 
+  it('updates structured day details from the drawer', () => {
+    service.updateSelectedDayDetails({
+      objective: 'Clean third-down install',
+      readiness: 'protect',
+      constraints: 'Indoor field only',
+      notes: 'Keep skill work before lift.',
+    });
+
+    expect(service.selectedDay()).toEqual(
+      expect.objectContaining({
+        objective: 'Clean third-down install',
+        readiness: 'protect',
+        constraints: 'Indoor field only',
+        notes: 'Keep skill work before lift.',
+      }),
+    );
+  });
+
   it('sets the active account plan when loading a server-backed plan', () => {
     const state = createInitialState();
     service.loadPlan({
@@ -112,5 +151,80 @@ describe('PlannerStateService autosave', () => {
     });
 
     expect(service.activeAccountPlan()).toEqual({ id: 'plan-1', name: 'Week 1', lockVersion: 7 });
+  });
+
+  it('defaults missing day details when loading an older saved plan', () => {
+    const state = createInitialState();
+    const olderState = {
+      ...state,
+      days: state.days.map(({ objective, readiness, constraints, notes, ...day }) => day),
+    } as unknown as typeof state;
+
+    service.loadPlan({
+      id: 'legacy-plan',
+      name: 'Legacy',
+      updatedAt: '2026-05-24T00:00:00Z',
+      state: olderState,
+    });
+
+    expect(service.selectedDay()).toEqual(
+      expect.objectContaining({
+        objective: '',
+        readiness: 'standard',
+        constraints: '',
+        notes: '',
+      }),
+    );
+  });
+
+  it('defaults the displayed week to Monday first', () => {
+    expect(service.displayDays().map((day) => day.id)).toEqual([
+      'mon',
+      'tue',
+      'wed',
+      'thu',
+      'fri',
+      'sat',
+      'sun',
+    ]);
+  });
+
+  it('applies signed-in week order preferences', async () => {
+    await service.updateWeekOrder('sundayFirst');
+
+    expect(userPreferencesApi.updateWeekOrder).toHaveBeenCalledWith('sundayFirst');
+    expect(service.displayDays().map((day) => day.id)).toEqual([
+      'sun',
+      'mon',
+      'tue',
+      'wed',
+      'thu',
+      'fri',
+      'sat',
+    ]);
+  });
+
+  it('can display game day last based on the selected template', async () => {
+    await service.updateWeekOrder('gameDayLast');
+    expect(service.displayDays().map((day) => day.id)).toEqual([
+      'sat',
+      'sun',
+      'mon',
+      'tue',
+      'wed',
+      'thu',
+      'fri',
+    ]);
+
+    service.setTemplate('gameSaturday');
+    expect(service.displayDays().map((day) => day.id)).toEqual([
+      'sun',
+      'mon',
+      'tue',
+      'wed',
+      'thu',
+      'fri',
+      'sat',
+    ]);
   });
 });

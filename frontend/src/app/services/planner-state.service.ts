@@ -1,10 +1,31 @@
 import { computed, Injectable, signal } from '@angular/core';
-import { createCellDemands, createGrid, createId, createInitialState, rowLabelsForSport } from '../data/planner-defaults';
-import { BlockLabelPreset, DayId, Organization, PlanShare, PlanVersion, SavedPlan, Sport, TemplateId, TrainingBlock } from '../models/planner.models';
+import {
+  createCellDemands,
+  createGrid,
+  createId,
+  createInitialState,
+  orderedDays,
+  rowLabelsForSport,
+} from '../data/planner-defaults';
+import {
+  BlockLabelPreset,
+  DayId,
+  DayReadiness,
+  Organization,
+  PlanShare,
+  PlanVersion,
+  SavedPlan,
+  Sport,
+  TemplateId,
+  TrainingBlock,
+  UserPreferences,
+  WeekOrder,
+} from '../models/planner.models';
 import { DesktopPlanStorageService } from './desktop-plan-storage.service';
 import { ApiAuthService } from './api-auth.service';
 import { ApiOrganizationService } from './api-organization.service';
 import { ApiPlanStorageService } from './api-plan-storage.service';
+import { ApiUserPreferencesService } from './api-user-preferences.service';
 import { PlannerCalculationsService } from './planner-calculations.service';
 
 @Injectable({ providedIn: 'root' })
@@ -14,12 +35,20 @@ export class PlannerStateService {
   readonly organizations = signal<Organization[]>([]);
   readonly planVersions = signal<PlanVersion[]>([]);
   readonly planShares = signal<Record<string, PlanShare>>({});
+  readonly userPreferences = signal<UserPreferences>({ weekOrder: 'mondayFirst', updatedAt: '' });
   readonly autosaveStatus = signal<'idle' | 'saving' | 'saved' | 'failed' | 'conflict'>('idle');
-  readonly activeAccountPlan = signal<{ id: string; name: string; lockVersion?: number } | null>(null);
+  readonly activeAccountPlan = signal<{ id: string; name: string; lockVersion?: number } | null>(
+    null,
+  );
 
   readonly dayLevels = computed(() => this.calculations.getDayLevels(this.state()));
   readonly blockCellAuLevels = computed(() => this.calculations.getBlockCellAuLevels(this.state()));
-  readonly selectedDay = computed(() => this.state().days.find((day) => day.id === this.state().selectedDay)!);
+  readonly displayDays = computed(() =>
+    orderedDays(this.state().days, this.userPreferences().weekOrder, this.state().template),
+  );
+  readonly selectedDay = computed(
+    () => this.state().days.find((day) => day.id === this.state().selectedDay)!,
+  );
   readonly selectedBlocks = computed(() => this.state().blocks[this.state().selectedDay]);
 
   readonly selectedDaySummary = computed(() => {
@@ -37,7 +66,10 @@ export class PlannerStateService {
 
   readonly weekSummary = computed(() => {
     const state = this.state();
-    const totals = state.days.map((day) => ({ ...day, au: this.calculations.getDayAu(state, day.id) }));
+    const totals = state.days.map((day) => ({
+      ...day,
+      au: this.calculations.getDayAu(state, day.id),
+    }));
     const totalAu = totals.reduce((sum, day) => sum + day.au, 0);
     const peak = totals.reduce((current, day) => (day.au > current.au ? day : current), totals[0]);
 
@@ -56,6 +88,7 @@ export class PlannerStateService {
     private readonly storage: DesktopPlanStorageService,
     private readonly apiStorage: ApiPlanStorageService,
     private readonly organizationsApi: ApiOrganizationService,
+    private readonly userPreferencesApi: ApiUserPreferencesService,
     readonly auth: ApiAuthService,
   ) {
     void this.bootstrapAccount();
@@ -71,7 +104,12 @@ export class PlannerStateService {
   }
 
   setTemplate(template: TemplateId): void {
-    this.state.update((state) => ({ ...state, template, grid: createGrid(template), cellDemands: createCellDemands(template, state.sport) }));
+    this.state.update((state) => ({
+      ...state,
+      template,
+      grid: createGrid(template),
+      cellDemands: createCellDemands(template, state.sport),
+    }));
     this.queueAutosave();
   }
 
@@ -92,7 +130,9 @@ export class PlannerStateService {
       ...state,
       cellDemands: {
         ...state.cellDemands,
-        [dayId]: state.cellDemands[dayId].map((value, index) => (index === rowIndex ? cleanDemand : value)),
+        [dayId]: state.cellDemands[dayId].map((value, index) =>
+          index === rowIndex ? cleanDemand : value,
+        ),
       },
     }));
     this.queueAutosave();
@@ -101,9 +141,21 @@ export class PlannerStateService {
   updateDayFocus(value: string): void {
     const title = value.trim() || 'Untitled';
 
+    this.updateSelectedDayDetails({ title });
+  }
+
+  updateSelectedDayDetails(
+    patch: Partial<{
+      title: string;
+      objective: string;
+      readiness: DayReadiness;
+      constraints: string;
+      notes: string;
+    }>,
+  ): void {
     this.state.update((state) => ({
       ...state,
-      days: state.days.map((day) => (day.id === state.selectedDay ? { ...day, title } : day)),
+      days: state.days.map((day) => (day.id === state.selectedDay ? { ...day, ...patch } : day)),
     }));
     this.queueAutosave();
   }
@@ -113,7 +165,10 @@ export class PlannerStateService {
       ...state,
       blocks: {
         ...state.blocks,
-        [state.selectedDay]: [...state.blocks[state.selectedDay], { ...block, id: createId('block') }],
+        [state.selectedDay]: [
+          ...state.blocks[state.selectedDay],
+          { ...block, id: createId('block') },
+        ],
       },
     }));
     this.queueAutosave();
@@ -124,7 +179,9 @@ export class PlannerStateService {
       ...state,
       blocks: {
         ...state.blocks,
-        [state.selectedDay]: state.blocks[state.selectedDay].filter((block) => block.id !== blockId),
+        [state.selectedDay]: state.blocks[state.selectedDay].filter(
+          (block) => block.id !== blockId,
+        ),
       },
     }));
     this.queueAutosave();
@@ -215,13 +272,11 @@ export class PlannerStateService {
   }
 
   loadPlan(plan: SavedPlan): void {
-    const loaded = structuredClone(plan.state);
+    const loaded = this.normalizeLoadedState(structuredClone(plan.state));
     this.suppressAutosave = true;
     try {
       this.state.set({
         ...loaded,
-        blockLabelPresets: loaded.blockLabelPresets || createInitialState().blockLabelPresets,
-        cellDemands: loaded.cellDemands || createCellDemands(loaded.template, loaded.sport),
         blockDialogOpen: false,
         labelConfigOpen: false,
         inspectorOpen: false,
@@ -256,18 +311,21 @@ export class PlannerStateService {
 
   async bootstrapAccount(): Promise<void> {
     await this.auth.bootstrap();
+    await this.refreshUserPreferences();
     await this.refreshOrganizations();
     await this.refreshSavedPlans();
   }
 
   async login(email: string, password: string): Promise<void> {
     await this.auth.login(email, password);
+    await this.refreshUserPreferences();
     await this.refreshOrganizations();
     await this.refreshSavedPlans();
   }
 
   async register(email: string, password: string): Promise<void> {
     await this.auth.register(email, password);
+    await this.refreshUserPreferences();
     await this.refreshOrganizations();
     await this.refreshSavedPlans();
   }
@@ -277,8 +335,25 @@ export class PlannerStateService {
     this.activeAccountPlan.set(null);
     this.planVersions.set([]);
     this.organizations.set([]);
+    this.userPreferences.set({ weekOrder: 'mondayFirst', updatedAt: '' });
     this.autosaveStatus.set('idle');
     await this.refreshSavedPlans();
+  }
+
+  async refreshUserPreferences(): Promise<void> {
+    if (this.auth.status() !== 'signed-in') {
+      this.userPreferences.set({ weekOrder: 'mondayFirst', updatedAt: '' });
+      return;
+    }
+    this.userPreferences.set(await this.userPreferencesApi.getPreferences());
+  }
+
+  async updateWeekOrder(weekOrder: WeekOrder): Promise<void> {
+    if (this.auth.status() !== 'signed-in') {
+      this.userPreferences.set({ weekOrder, updatedAt: '' });
+      return;
+    }
+    this.userPreferences.set(await this.userPreferencesApi.updateWeekOrder(weekOrder));
   }
 
   async refreshOrganizations(): Promise<void> {
@@ -313,7 +388,10 @@ export class PlannerStateService {
   }
 
   async duplicatePlan(planId: string, name: string): Promise<SavedPlan> {
-    const plan = await this.apiStorage.duplicatePlan(planId, name.trim() || 'Duplicated weekly plan');
+    const plan = await this.apiStorage.duplicatePlan(
+      planId,
+      name.trim() || 'Duplicated weekly plan',
+    );
     this.rememberSavedPlan(plan);
     this.loadPlan(plan);
     this.state.update((state) => ({ ...state, savedPlansOpen: true }));
@@ -331,13 +409,34 @@ export class PlannerStateService {
     return this.apiStorage.exportCSVUrl(planId);
   }
 
-  private activeStorage(): Pick<DesktopPlanStorageService, 'listPlans' | 'savePlan' | 'deletePlan'> {
+  private activeStorage(): Pick<
+    DesktopPlanStorageService,
+    'listPlans' | 'savePlan' | 'deletePlan'
+  > {
     return this.auth.status() === 'signed-in' ? this.apiStorage : this.storage;
   }
 
   private rememberSavedPlan(plan: SavedPlan): void {
     const plans = [plan, ...this.savedPlans().filter((saved) => saved.id !== plan.id)].slice(0, 12);
     this.savedPlans.set(plans);
+  }
+
+  private normalizeLoadedState(loaded: SavedPlan['state']): SavedPlan['state'] {
+    const defaults = createInitialState();
+    const defaultDays = new Map(defaults.days.map((day) => [day.id, day]));
+    return {
+      ...loaded,
+      days: loaded.days.map((day) => ({
+        ...defaultDays.get(day.id)!,
+        ...day,
+        objective: day.objective || '',
+        readiness: day.readiness || 'standard',
+        constraints: day.constraints || '',
+        notes: day.notes || '',
+      })),
+      blockLabelPresets: loaded.blockLabelPresets || defaults.blockLabelPresets,
+      cellDemands: loaded.cellDemands || createCellDemands(loaded.template, loaded.sport),
+    };
   }
 
   private queueAutosave(): void {
@@ -361,7 +460,11 @@ export class PlannerStateService {
     }
     try {
       const saved = await this.apiStorage.savePlan(activePlan.name, this.state(), activePlan);
-      this.activeAccountPlan.set({ id: saved.id, name: saved.name, lockVersion: saved.lockVersion });
+      this.activeAccountPlan.set({
+        id: saved.id,
+        name: saved.name,
+        lockVersion: saved.lockVersion,
+      });
       this.rememberSavedPlan(saved);
       this.autosaveStatus.set('saved');
     } catch (error) {

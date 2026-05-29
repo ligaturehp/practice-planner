@@ -18,9 +18,16 @@
         <option value="gameSaturday">Game Saturday</option>
       </select>
     </label>
-    <button class="icon-button" type="button" title="Print or save as PDF" (click)="planner.print()">PDF</button>
-    <button class="text-button" type="button" (click)="planner.openInspector()">Inspector</button>
-    <button class="text-button" type="button" (click)="planner.toggleSavedPlans()">Plans</button>
+    <button
+      class="icon-button"
+      type="button"
+      title="Print or save as PDF"
+      (click)="planner.print()"
+    >
+      PDF
+    </button>
+    <button class="text-button" type="button" (click)="planner.openInspector()">Day Details</button>
+    <button class="text-button" type="button" (click)="planner.toggleSavedPlans()">Profile</button>
   </div>
 </header>
 
@@ -31,7 +38,9 @@
         <p class="eyebrow">Planner</p>
       </div>
       <div class="planner-heading-meta">
-        <p class="section-note">Click a day column, adjust the board, then add blocks to shape demand and exposure.</p>
+        <p class="section-note">
+          Click a day column, adjust the board, then add blocks to shape demand and exposure.
+        </p>
         <div class="summary-strip" aria-label="Weekly summary">
           <div class="summary-item">
             <span>Total planned AU</span>

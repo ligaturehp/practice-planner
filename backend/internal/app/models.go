@@ -42,6 +42,12 @@ type PasswordResetToken struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
+type UserPreferences struct {
+	UserID    string    `json:"-"`
+	WeekOrder string    `json:"week_order"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
 type Plan struct {
 	ID             string          `json:"id"`
 	UserID         string          `json:"-"`

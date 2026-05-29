@@ -19,7 +19,10 @@ export class DesktopPlanStorageService {
     const cleanState = this.stripTransientState(state);
 
     try {
-      return (await PlanService.SavePlan(name, cleanState as unknown as Record<string, unknown>)) as SavedPlan;
+      return (await PlanService.SavePlan(
+        name,
+        cleanState as unknown as Record<string, unknown>,
+      )) as SavedPlan;
     } catch {
       return this.saveFallbackPlan(name, cleanState);
     }
@@ -38,6 +41,7 @@ export class DesktopPlanStorageService {
       ...structuredClone(state),
       blockDialogOpen: false,
       labelConfigOpen: false,
+      inspectorOpen: false,
       savedPlansOpen: false,
     };
   }

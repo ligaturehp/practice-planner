@@ -2,13 +2,19 @@ export type DayId = 'sat' | 'sun' | 'mon' | 'tue' | 'wed' | 'thu' | 'fri';
 
 export type WorkloadBand = 'low' | 'medium' | 'high' | 'max' | 'neutral';
 export type WorkloadLabel = 'Low' | 'Medium' | 'High';
+export type DayReadiness = 'standard' | 'protect' | 'push';
 export type Sport = 'football' | 'rugby';
 export type TemplateId = 'gameFriday' | 'gameSaturday';
+export type WeekOrder = 'mondayFirst' | 'sundayFirst' | 'gameDayLast';
 
 export interface PlannerDay {
   id: DayId;
   label: string;
   title: string;
+  objective: string;
+  readiness: DayReadiness;
+  constraints: string;
+  notes: string;
 }
 
 export interface TrainingBlock {
@@ -98,6 +104,16 @@ export interface ApiUser {
   id: string;
   email: string;
   created_at: string;
+}
+
+export interface UserPreferences {
+  weekOrder: WeekOrder;
+  updatedAt: string;
+}
+
+export interface ApiUserPreferences {
+  week_order: WeekOrder;
+  updated_at: string;
 }
 
 export interface Organization {

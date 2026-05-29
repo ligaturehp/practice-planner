@@ -3,6 +3,7 @@ import { vi } from 'vitest';
 import { ApiAuthService } from '../../services/api-auth.service';
 import { ApiOrganizationService } from '../../services/api-organization.service';
 import { ApiPlanStorageService } from '../../services/api-plan-storage.service';
+import { ApiUserPreferencesService } from '../../services/api-user-preferences.service';
 import { DesktopPlanStorageService } from '../../services/desktop-plan-storage.service';
 import { PlannerStateService } from '../../services/planner-state.service';
 import { DemandGridComponent } from './demand-grid.component';
@@ -18,6 +19,7 @@ describe('DemandGridComponent', () => {
         { provide: ApiAuthService, useValue: { status: vi.fn().mockReturnValue('signed-out'), bootstrap: vi.fn().mockResolvedValue(undefined) } },
         { provide: ApiOrganizationService, useValue: { listOrganizations: vi.fn().mockResolvedValue([]), createOrganization: vi.fn() } },
         { provide: ApiPlanStorageService, useValue: { listPlans: vi.fn().mockResolvedValue([]), savePlan: vi.fn(), deletePlan: vi.fn() } },
+        { provide: ApiUserPreferencesService, useValue: { getPreferences: vi.fn(), updateWeekOrder: vi.fn() } },
         { provide: DesktopPlanStorageService, useValue: { listPlans: vi.fn().mockResolvedValue([]), savePlan: vi.fn(), deletePlan: vi.fn() } },
       ],
     }).compileComponents();
@@ -32,8 +34,8 @@ describe('DemandGridComponent', () => {
     const compiled = fixture.nativeElement as HTMLElement;
     const firstCell = compiled.querySelector('tbody td') as HTMLElement;
 
-    expect(firstCell.querySelector('.cell-intent-trigger')?.textContent).toContain('Rest');
-    expect(firstCell.querySelector('.cell-demand-badge')?.textContent?.trim()).toBe('Off');
+    expect(firstCell.querySelector('.cell-intent-trigger')?.textContent).toContain('Moderate');
+    expect(firstCell.querySelector('.cell-demand-badge')?.textContent?.trim()).toBe('Moderate');
     expect(firstCell.querySelector('.cell-demand-button')).toBeNull();
     expect(compiled.querySelector('.selected-cell-tools')).toBeNull();
   });
@@ -70,8 +72,8 @@ describe('DemandGridComponent', () => {
     maxButton.click();
     fixture.detectChanges();
 
-    expect(planner.state().grid.sat[0]).toBe('Rest');
-    expect(planner.state().cellDemands.sat[0]).toBe(4);
+    expect(planner.state().grid.mon[0]).toBe('Moderate');
+    expect(planner.state().cellDemands.mon[0]).toBe(4);
     expect(maxButton.classList.contains('is-active')).toBe(true);
   });
 
@@ -88,8 +90,8 @@ describe('DemandGridComponent', () => {
 
     expect(firstCell.querySelector('.cell-intent-input')).toBeNull();
     expect(firstCell.querySelector('.cell-intent-trigger')).toBeTruthy();
-    expect(planner.state().grid.sat[0]).toBe('Rest');
-    expect(planner.state().cellDemands.sat[0]).toBe(4);
-    expect(planner.state().selectedDay).toBe('sat');
+    expect(planner.state().grid.mon[0]).toBe('Moderate');
+    expect(planner.state().cellDemands.mon[0]).toBe(4);
+    expect(planner.state().selectedDay).toBe('mon');
   });
 });

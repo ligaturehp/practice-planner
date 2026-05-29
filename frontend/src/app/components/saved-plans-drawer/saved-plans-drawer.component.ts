@@ -1,7 +1,10 @@
 import { DatePipe } from '@angular/common';
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { WeekOrder } from '../../models/planner.models';
 import { PlannerStateService } from '../../services/planner-state.service';
+
+type ProfileSection = 'account' | 'teams' | 'plans' | 'preferences';
 
 @Component({
   selector: 'app-saved-plans-drawer',
@@ -11,13 +14,29 @@ import { PlannerStateService } from '../../services/planner-state.service';
 })
 export class SavedPlansDrawerComponent {
   readonly planner = inject(PlannerStateService);
+  readonly profileSections: { id: ProfileSection; label: string }[] = [
+    { id: 'account', label: 'Account' },
+    { id: 'teams', label: 'Teams' },
+    { id: 'plans', label: 'Plans' },
+    { id: 'preferences', label: 'Preferences' },
+  ];
+  readonly weekOrderOptions: { value: WeekOrder; label: string; description: string }[] = [
+    { value: 'mondayFirst', label: 'Monday first', description: 'Mon Tue Wed Thu Fri Sat Sun' },
+    { value: 'sundayFirst', label: 'Sunday first', description: 'Sun Mon Tue Wed Thu Fri Sat' },
+    { value: 'gameDayLast', label: 'Game day last', description: 'Build the week toward game day' },
+  ];
   planName = 'Weekly plan';
   status = '';
   email = '';
   password = '';
   authMode: 'login' | 'register' = 'login';
+  activeSection = signal<ProfileSection>('plans');
   historyPlanId = '';
   organizationName = 'New team';
+
+  setActiveSection(section: ProfileSection): void {
+    this.activeSection.set(section);
+  }
 
   async savePlan(): Promise<void> {
     const name = this.planName.trim() || 'Untitled weekly plan';
@@ -58,9 +77,11 @@ export class SavedPlansDrawerComponent {
     if (this.authMode === 'register') {
       await this.planner.register(email, password);
       this.status = 'Account created. Plans now save to your account.';
+      this.activeSection.set('preferences');
     } else {
       await this.planner.login(email, password);
       this.status = 'Signed in. Account plans loaded.';
+      this.activeSection.set('plans');
     }
     this.password = '';
   }
@@ -75,6 +96,12 @@ export class SavedPlansDrawerComponent {
   async logout(): Promise<void> {
     await this.planner.logout();
     this.status = 'Signed out. Guest drafts are saved in this browser.';
+    this.activeSection.set('account');
+  }
+
+  async updateWeekOrder(value: WeekOrder): Promise<void> {
+    await this.planner.updateWeekOrder(value);
+    this.status = 'Week order preference saved.';
   }
 
   autosaveLabel(): string {

@@ -16,9 +16,12 @@ type Store interface {
 	Close()
 
 	CreateUser(ctx context.Context, email string, passwordHash string) (User, error)
+	CreateUserWithSession(ctx context.Context, email string, passwordHash string, tokenHash string, expiresAt time.Time) (User, error)
 	GetUserByEmail(ctx context.Context, email string) (User, error)
 	GetUserByID(ctx context.Context, id string) (User, error)
 	UpdateUserPassword(ctx context.Context, id string, passwordHash string) error
+	GetUserPreferences(ctx context.Context, userID string) (UserPreferences, error)
+	UpdateUserPreferences(ctx context.Context, userID string, preferences UserPreferences) (UserPreferences, error)
 	ListOrganizations(ctx context.Context, userID string) ([]Organization, error)
 	CreateOrganization(ctx context.Context, userID string, name string) (Organization, error)
 	AddOrganizationMember(ctx context.Context, actorUserID string, organizationID string, email string, role string) error

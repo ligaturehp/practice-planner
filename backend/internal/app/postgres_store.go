@@ -123,6 +123,42 @@ func (s *PostgresStore) CreateUser(ctx context.Context, email string, passwordHa
 	if _, err := createOrganization(ctx, tx, user.ID, "My Team"); err != nil {
 		return User{}, err
 	}
+	if _, err := createDefaultUserPreferences(ctx, tx, user.ID); err != nil {
+		return User{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return User{}, err
+	}
+	return user, nil
+}
+
+func (s *PostgresStore) CreateUserWithSession(ctx context.Context, email string, passwordHash string, tokenHash string, expiresAt time.Time) (User, error) {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return User{}, err
+	}
+	defer tx.Rollback(ctx)
+	var user User
+	err = tx.QueryRow(ctx, `
+		INSERT INTO users (email, password_hash)
+		VALUES ($1, $2)
+		RETURNING id::text, email, password_hash, created_at
+	`, normalizeEmail(email), passwordHash).Scan(&user.ID, &user.Email, &user.PasswordHash, &user.CreatedAt)
+	if isUniqueViolation(err) {
+		return User{}, ErrConflict
+	}
+	if err != nil {
+		return User{}, err
+	}
+	if _, err := createOrganization(ctx, tx, user.ID, "My Team"); err != nil {
+		return User{}, err
+	}
+	if _, err := createDefaultUserPreferences(ctx, tx, user.ID); err != nil {
+		return User{}, err
+	}
+	if _, err := createSession(ctx, tx, user.ID, tokenHash, expiresAt); err != nil {
+		return User{}, err
+	}
 	if err := tx.Commit(ctx); err != nil {
 		return User{}, err
 	}
@@ -164,6 +200,32 @@ func (s *PostgresStore) UpdateUserPassword(ctx context.Context, id string, passw
 		return ErrNotFound
 	}
 	return nil
+}
+
+func (s *PostgresStore) GetUserPreferences(ctx context.Context, userID string) (UserPreferences, error) {
+	var preferences UserPreferences
+	err := s.pool.QueryRow(ctx, `
+		SELECT user_id::text, week_order, updated_at
+		FROM user_preferences
+		WHERE user_id = $1
+	`, userID).Scan(&preferences.UserID, &preferences.WeekOrder, &preferences.UpdatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return createDefaultUserPreferences(ctx, s.pool, userID)
+	}
+	return preferences, err
+}
+
+func (s *PostgresStore) UpdateUserPreferences(ctx context.Context, userID string, preferences UserPreferences) (UserPreferences, error) {
+	var updated UserPreferences
+	err := s.pool.QueryRow(ctx, `
+		INSERT INTO user_preferences (user_id, week_order)
+		VALUES ($1, $2)
+		ON CONFLICT (user_id) DO UPDATE
+		SET week_order = EXCLUDED.week_order,
+			updated_at = now()
+		RETURNING user_id::text, week_order, updated_at
+	`, userID, preferences.WeekOrder).Scan(&updated.UserID, &updated.WeekOrder, &updated.UpdatedAt)
+	return updated, err
 }
 
 func (s *PostgresStore) ListOrganizations(ctx context.Context, userID string) ([]Organization, error) {
@@ -237,13 +299,7 @@ func (s *PostgresStore) DefaultOrganizationID(ctx context.Context, userID string
 }
 
 func (s *PostgresStore) CreateSession(ctx context.Context, userID string, tokenHash string, expiresAt time.Time) (Session, error) {
-	var session Session
-	err := s.pool.QueryRow(ctx, `
-		INSERT INTO sessions (user_id, token_hash, expires_at)
-		VALUES ($1, $2, $3)
-		RETURNING id::text, user_id::text, token_hash, expires_at, created_at
-	`, userID, tokenHash, expiresAt).Scan(&session.ID, &session.UserID, &session.TokenHash, &session.ExpiresAt, &session.CreatedAt)
-	return session, err
+	return createSession(ctx, s.pool, userID, tokenHash, expiresAt)
 }
 
 func (s *PostgresStore) GetSessionByTokenHash(ctx context.Context, tokenHash string) (Session, error) {
@@ -584,6 +640,42 @@ func insertPlanVersion(ctx context.Context, q planQuerier, plan Plan) error {
 		VALUES ($1, $2, $3, $4, $5, $6, $7)
 		RETURNING id
 	`, plan.ID, plan.UserID, plan.Name, plan.Sport, plan.Template, plan.PlanJSON, plan.LockVersion).Scan(&id)
+}
+
+func createSession(ctx context.Context, q planQuerier, userID string, tokenHash string, expiresAt time.Time) (Session, error) {
+	var session Session
+	err := q.QueryRow(ctx, `
+		INSERT INTO sessions (user_id, token_hash, expires_at)
+		VALUES ($1, $2, $3)
+		RETURNING id::text, user_id::text, token_hash, expires_at, created_at
+	`, userID, tokenHash, expiresAt).Scan(&session.ID, &session.UserID, &session.TokenHash, &session.ExpiresAt, &session.CreatedAt)
+	return session, err
+}
+
+func createDefaultUserPreferences(ctx context.Context, q planQuerier, userID string) (UserPreferences, error) {
+	preferences := defaultUserPreferences(userID)
+	err := q.QueryRow(ctx, `
+		INSERT INTO user_preferences (user_id, week_order)
+		VALUES ($1, $2)
+		ON CONFLICT (user_id) DO NOTHING
+		RETURNING user_id::text, week_order, updated_at
+	`, userID, preferences.WeekOrder).Scan(&preferences.UserID, &preferences.WeekOrder, &preferences.UpdatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return preferences, q.QueryRow(ctx, `
+			SELECT user_id::text, week_order, updated_at
+			FROM user_preferences
+			WHERE user_id = $1
+		`, userID).Scan(&preferences.UserID, &preferences.WeekOrder, &preferences.UpdatedAt)
+	}
+	return preferences, err
+}
+
+func defaultUserPreferences(userID string) UserPreferences {
+	return UserPreferences{
+		UserID:    userID,
+		WeekOrder: "mondayFirst",
+		UpdatedAt: time.Now().UTC(),
+	}
 }
 
 func createOrganization(ctx context.Context, q planQuerier, userID string, name string) (Organization, error) {

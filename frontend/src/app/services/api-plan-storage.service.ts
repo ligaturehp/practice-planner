@@ -2,7 +2,15 @@ import { HttpClient } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { environment } from '../../environments/environment';
-import { ApiPlan, ApiPlanShare, ApiPlanVersion, PlannerState, PlanShare, PlanVersion, SavedPlan } from '../models/planner.models';
+import {
+  ApiPlan,
+  ApiPlanShare,
+  ApiPlanVersion,
+  PlannerState,
+  PlanShare,
+  PlanVersion,
+  SavedPlan,
+} from '../models/planner.models';
 import { ApiAuthService } from './api-auth.service';
 
 @Injectable({ providedIn: 'root' })
@@ -19,7 +27,11 @@ export class ApiPlanStorageService {
     return response.plans.map((plan) => this.fromApiPlan(plan));
   }
 
-  async savePlan(name: string, state: PlannerState, remotePlan?: { id: string; lockVersion?: number }): Promise<SavedPlan> {
+  async savePlan(
+    name: string,
+    state: PlannerState,
+    remotePlan?: { id: string; lockVersion?: number },
+  ): Promise<SavedPlan> {
     const cleanState = this.stripTransientState(state);
     const csrfToken = await this.auth.csrfToken();
     const body = {
@@ -30,17 +42,19 @@ export class ApiPlanStorageService {
       ...(remotePlan?.lockVersion ? { lock_version: remotePlan.lockVersion } : {}),
     };
     const request = remotePlan?.id
-      ? this.http.put<{ plan: ApiPlan }>(this.url(`/api/plans/${encodeURIComponent(remotePlan.id)}`), body, {
-          headers: { 'X-CSRF-Token': csrfToken },
-          withCredentials: true,
-        })
+      ? this.http.put<{ plan: ApiPlan }>(
+          this.url(`/api/plans/${encodeURIComponent(remotePlan.id)}`),
+          body,
+          {
+            headers: { 'X-CSRF-Token': csrfToken },
+            withCredentials: true,
+          },
+        )
       : this.http.post<{ plan: ApiPlan }>(this.url('/api/plans'), body, {
           headers: { 'X-CSRF-Token': csrfToken },
           withCredentials: true,
         });
-    const response = await firstValueFrom(
-      request,
-    );
+    const response = await firstValueFrom(request);
     return this.fromApiPlan(response.plan);
   }
 
@@ -56,9 +70,12 @@ export class ApiPlanStorageService {
 
   async listPlanVersions(planId: string): Promise<PlanVersion[]> {
     const response = await firstValueFrom(
-      this.http.get<{ versions: ApiPlanVersion[] }>(this.url(`/api/plans/${encodeURIComponent(planId)}/versions`), {
-        withCredentials: true,
-      }),
+      this.http.get<{ versions: ApiPlanVersion[] }>(
+        this.url(`/api/plans/${encodeURIComponent(planId)}/versions`),
+        {
+          withCredentials: true,
+        },
+      ),
     );
     return response.versions.map((version) => this.fromApiPlanVersion(version));
   }
@@ -67,7 +84,9 @@ export class ApiPlanStorageService {
     const csrfToken = await this.auth.csrfToken();
     const response = await firstValueFrom(
       this.http.post<{ plan: ApiPlan }>(
-        this.url(`/api/plans/${encodeURIComponent(planId)}/versions/${encodeURIComponent(versionId)}/restore`),
+        this.url(
+          `/api/plans/${encodeURIComponent(planId)}/versions/${encodeURIComponent(versionId)}/restore`,
+        ),
         {},
         { headers: { 'X-CSRF-Token': csrfToken }, withCredentials: true },
       ),
@@ -139,6 +158,7 @@ export class ApiPlanStorageService {
       ...structuredClone(state),
       blockDialogOpen: false,
       labelConfigOpen: false,
+      inspectorOpen: false,
       savedPlansOpen: false,
     };
   }

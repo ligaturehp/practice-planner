@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, rm, writeFile, mkdir } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile, mkdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, test } from 'node:test';
@@ -57,4 +57,25 @@ test('frontend server returns an empty Wails browser shim instead of SPA HTML', 
   assert.equal(runtimeResponse.status, 200);
   assert.match(runtimeResponse.headers.get('content-type') || '', /text\/javascript/);
   assert.equal(await runtimeResponse.text(), '');
+});
+
+test('day details drawer keeps a bounded scroll container across responsive layouts', async () => {
+  const styles = await readFile(new URL('./src/styles.css', import.meta.url), 'utf8');
+
+  assert.match(
+    styles,
+    /\.inspector-drawer\s*{[^}]*position:\s*fixed;[^}]*height:\s*calc\(100vh - 32px\);[^}]*overflow:\s*hidden;[^}]*overscroll-behavior:\s*contain;/s,
+  );
+  assert.match(
+    styles,
+    /\.planning-drawer-body\s*{[^}]*overflow-y:\s*auto;[^}]*overscroll-behavior:\s*contain;/s,
+  );
+  assert.match(
+    styles,
+    /\.block-panel:not\(\.planning-drawer\)\s*{[^}]*position:\s*static;[^}]*max-height:\s*none;/s,
+  );
+  assert.match(
+    styles,
+    /\.planning-drawer\s*{[^}]*position:\s*fixed;[^}]*bottom:\s*12px;[^}]*height:\s*calc\(100vh - 24px\);/s,
+  );
 });

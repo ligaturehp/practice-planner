@@ -23,10 +23,13 @@ body {
   color: var(--ink);
   background:
     linear-gradient(90deg, rgba(24, 32, 27, 0.04) 1px, transparent 1px),
-    linear-gradient(180deg, rgba(24, 32, 27, 0.04) 1px, transparent 1px),
-    var(--paper);
+    linear-gradient(180deg, rgba(24, 32, 27, 0.04) 1px, transparent 1px), var(--paper);
   background-size: 28px 28px;
-  font-family: Avenir Next, Trebuchet MS, Verdana, sans-serif;
+  font-family:
+    Avenir Next,
+    Trebuchet MS,
+    Verdana,
+    sans-serif;
 }
 
 button,
@@ -214,13 +217,26 @@ textarea {
 }
 
 .inspector-drawer {
+  display: flex;
+  flex-direction: column;
   position: fixed;
   top: 16px;
   right: 16px;
   bottom: 16px;
   z-index: 30;
   width: min(420px, calc(100vw - 32px));
+  height: calc(100vh - 32px);
   max-height: none;
+  overflow: hidden;
+  overscroll-behavior: contain;
+}
+
+.planning-drawer-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 2px 2px;
+  overscroll-behavior: contain;
 }
 
 .drawer-title-actions {
@@ -242,6 +258,7 @@ textarea {
 }
 
 .panel-title {
+  flex: 0 0 auto;
   margin: 0 0 10px;
   padding: 4px 4px 0;
 }
@@ -295,10 +312,28 @@ textarea {
   margin-bottom: 10px;
 }
 
-.day-focus-field input {
+.day-detail-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(136px, 0.6fr);
+  gap: 10px;
+}
+
+.day-focus-field input,
+.day-focus-field select,
+.day-focus-field textarea {
   border-color: rgba(24, 59, 91, 0.34);
   background: #fffef9;
+}
+
+.day-focus-field input,
+.day-focus-field select {
   font-weight: 800;
+}
+
+.day-focus-field textarea {
+  min-height: 76px;
+  resize: vertical;
+  line-height: 1.35;
 }
 
 .dialog-backdrop {
@@ -333,6 +368,10 @@ textarea {
   right: 18px;
   width: min(380px, calc(100vw - 32px));
   padding: 16px;
+}
+
+.profile-drawer {
+  width: min(520px, calc(100vw - 32px));
 }
 
 .saved-drawer {
@@ -380,6 +419,83 @@ textarea {
 .team-panel label {
   display: grid;
   gap: 5px;
+}
+
+.profile-tabs {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.profile-tab,
+.segmented-control button {
+  min-height: 44px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fffef9;
+  color: var(--ink);
+  font-weight: 900;
+}
+
+.profile-tab.is-active,
+.segmented-control button.is-active {
+  border-color: var(--guide);
+  background: var(--guide);
+  color: white;
+}
+
+.profile-section {
+  display: grid;
+  gap: 12px;
+}
+
+.preference-group {
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid rgba(24, 59, 91, 0.24);
+  border-radius: 8px;
+  background: #f5f9fb;
+}
+
+.segmented-control {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.segmented-control button {
+  display: grid;
+  align-content: center;
+  gap: 4px;
+  padding: 8px;
+  text-align: left;
+}
+
+.segmented-control small {
+  color: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.week-preview {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.week-preview span {
+  min-height: 34px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fffef9;
+  color: var(--guide);
+  font-size: 12px;
+  font-weight: 900;
 }
 
 .dialog-panel {
@@ -1218,8 +1334,18 @@ textarea {
     grid-template-columns: 1fr;
   }
 
-  .block-panel {
+  .block-panel:not(.planning-drawer) {
     position: static;
+    max-height: none;
+  }
+
+  .planning-drawer {
+    position: fixed;
+    top: 12px;
+    right: 12px;
+    bottom: 12px;
+    width: min(460px, calc(100vw - 24px));
+    height: calc(100vh - 24px);
     max-height: none;
   }
 
@@ -1266,7 +1392,8 @@ textarea {
 
   .summary-strip,
   .day-score,
-  .day-context {
+  .day-context,
+  .day-detail-grid {
     grid-template-columns: 1fr;
   }
 
@@ -1292,8 +1419,7 @@ textarea {
   body {
     background:
       linear-gradient(90deg, rgba(24, 32, 27, 0.04) 1px, transparent 1px),
-      linear-gradient(180deg, rgba(24, 32, 27, 0.04) 1px, transparent 1px),
-      var(--paper);
+      linear-gradient(180deg, rgba(24, 32, 27, 0.04) 1px, transparent 1px), var(--paper);
     background-size: 28px 28px;
   }
 

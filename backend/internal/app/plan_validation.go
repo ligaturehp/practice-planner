@@ -32,6 +32,19 @@ var validWorkloadLevels = map[string]struct{}{
 	"High":   {},
 }
 
+var validWeekOrders = map[string]struct{}{
+	"mondayFirst": {},
+	"sundayFirst": {},
+	"gameDayLast": {},
+}
+
+var validDayReadiness = map[string]struct{}{
+	"":         {},
+	"standard": {},
+	"protect":  {},
+	"push":     {},
+}
+
 type plannerPayload struct {
 	SelectedDay       string                           `json:"selectedDay"`
 	Sport             string                           `json:"sport"`
@@ -44,9 +57,13 @@ type plannerPayload struct {
 }
 
 type plannerPayloadDay struct {
-	ID    string `json:"id"`
-	Label string `json:"label"`
-	Title string `json:"title"`
+	ID          string `json:"id"`
+	Label       string `json:"label"`
+	Title       string `json:"title"`
+	Objective   string `json:"objective"`
+	Readiness   string `json:"readiness"`
+	Constraints string `json:"constraints"`
+	Notes       string `json:"notes"`
 }
 
 type plannerPayloadBlock struct {
@@ -104,6 +121,9 @@ func validatePlanInput(input PlanInput) error {
 	for _, day := range payload.Days {
 		if !isValidDayID(day.ID) || day.Label == "" || len(day.Label) > 12 || len(day.Title) > 120 {
 			return errors.New("valid planner days are required")
+		}
+		if _, ok := validDayReadiness[day.Readiness]; !ok || len(day.Objective) > 500 || len(day.Constraints) > 500 || len(day.Notes) > 1200 {
+			return errors.New("valid planner day details are required")
 		}
 		seenDays[day.ID] = struct{}{}
 	}
@@ -213,5 +233,10 @@ func validateBlock(block plannerPayloadBlock) error {
 
 func isValidDayID(dayID string) bool {
 	_, ok := validDayIDs[dayID]
+	return ok
+}
+
+func validWeekOrder(value string) bool {
+	_, ok := validWeekOrders[value]
 	return ok
 }

@@ -6,3 +6,5 @@ frontend/dist/
 frontend/node_modules/
 *.log
 .DS_Store
+tasks/
+docs/

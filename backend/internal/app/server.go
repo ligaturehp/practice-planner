@@ -62,6 +62,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/auth/csrf", s.requireUser(s.handleCSRF))
 	mux.HandleFunc("POST /api/auth/password-reset/request", s.handlePasswordResetRequest)
 	mux.HandleFunc("POST /api/auth/password-reset/complete", s.handlePasswordResetComplete)
+	mux.HandleFunc("GET /api/profile/preferences", s.requireUser(s.handleGetUserPreferences))
+	mux.HandleFunc("PUT /api/profile/preferences", s.requireUser(s.requireCSRF(s.handleUpdateUserPreferences)))
 	mux.HandleFunc("GET /api/organizations", s.requireUser(s.handleListOrganizations))
 	mux.HandleFunc("POST /api/organizations", s.requireUser(s.requireCSRF(s.handleCreateOrganization)))
 	mux.HandleFunc("POST /api/organizations/{id}/members", s.requireUser(s.requireCSRF(s.handleAddOrganizationMember)))
@@ -202,7 +204,18 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "could not secure password")
 		return
 	}
-	user, err := s.store.CreateUser(r.Context(), email, passwordHash)
+	token, err := newSessionToken()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not create session")
+		return
+	}
+	tokenHash, err := hashSessionToken(s.cfg.SessionSecret, token)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not create session")
+		return
+	}
+	expiresAt := s.now().Add(sessionTTL)
+	user, err := s.store.CreateUserWithSession(r.Context(), email, passwordHash, tokenHash, expiresAt)
 	if errors.Is(err, ErrConflict) {
 		writeError(w, http.StatusConflict, "email already registered")
 		return
@@ -211,9 +224,7 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "could not create user")
 		return
 	}
-	if !s.issueSession(w, r, user.ID) {
-		return
-	}
+	http.SetCookie(w, s.sessionCookie(token, expiresAt))
 	writeJSON(w, http.StatusCreated, map[string]User{"user": user})
 }
 
@@ -366,6 +377,35 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleMe(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]User{"user": userFromContext(r.Context())})
+}
+
+func (s *Server) handleGetUserPreferences(w http.ResponseWriter, r *http.Request) {
+	user := userFromContext(r.Context())
+	preferences, err := s.store.GetUserPreferences(r.Context(), user.ID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not get preferences")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]UserPreferences{"preferences": preferences})
+}
+
+func (s *Server) handleUpdateUserPreferences(w http.ResponseWriter, r *http.Request) {
+	var input UserPreferences
+	if !decodeJSON(w, r, &input) {
+		return
+	}
+	input.WeekOrder = strings.TrimSpace(input.WeekOrder)
+	if !validWeekOrder(input.WeekOrder) {
+		writeError(w, http.StatusBadRequest, "valid week order is required")
+		return
+	}
+	user := userFromContext(r.Context())
+	preferences, err := s.store.UpdateUserPreferences(r.Context(), user.ID, input)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "could not update preferences")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]UserPreferences{"preferences": preferences})
 }
 
 func (s *Server) handleListPlans(w http.ResponseWriter, r *http.Request) {

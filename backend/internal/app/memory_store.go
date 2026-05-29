@@ -15,6 +15,7 @@ type MemoryStore struct {
 	users    map[string]User
 	emailIDs map[string]string
 	orgs     map[string]Organization
+	prefs    map[string]UserPreferences
 	members  map[string]map[string]Membership
 	sessions map[string]Session
 	resets   map[string]PasswordResetToken
@@ -29,6 +30,7 @@ func NewMemoryStore() *MemoryStore {
 		users:    map[string]User{},
 		emailIDs: map[string]string{},
 		orgs:     map[string]Organization{},
+		prefs:    map[string]UserPreferences{},
 		members:  map[string]map[string]Membership{},
 		sessions: map[string]Session{},
 		resets:   map[string]PasswordResetToken{},
@@ -49,6 +51,28 @@ func (s *MemoryStore) Close() {}
 func (s *MemoryStore) CreateUser(_ context.Context, email string, passwordHash string) (User, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	return s.createUserLocked(email, passwordHash)
+}
+
+func (s *MemoryStore) CreateUserWithSession(_ context.Context, email string, passwordHash string, tokenHash string, expiresAt time.Time) (User, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	user, err := s.createUserLocked(email, passwordHash)
+	if err != nil {
+		return User{}, err
+	}
+	session := Session{
+		ID:        newID(),
+		UserID:    user.ID,
+		TokenHash: tokenHash,
+		ExpiresAt: expiresAt,
+		CreatedAt: time.Now().UTC(),
+	}
+	s.sessions[tokenHash] = session
+	return user, nil
+}
+
+func (s *MemoryStore) createUserLocked(email string, passwordHash string) (User, error) {
 	email = normalizeEmail(email)
 	if _, ok := s.emailIDs[email]; ok {
 		return User{}, ErrConflict
@@ -61,6 +85,7 @@ func (s *MemoryStore) CreateUser(_ context.Context, email string, passwordHash s
 	}
 	s.users[user.ID] = user
 	s.emailIDs[email] = user.ID
+	s.prefs[user.ID] = defaultUserPreferences(user.ID)
 	org := Organization{
 		ID:        newID(),
 		Name:      "My Team",
@@ -109,6 +134,31 @@ func (s *MemoryStore) UpdateUserPassword(_ context.Context, id string, passwordH
 	user.PasswordHash = passwordHash
 	s.users[id] = user
 	return nil
+}
+
+func (s *MemoryStore) GetUserPreferences(_ context.Context, userID string) (UserPreferences, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	preferences, ok := s.prefs[userID]
+	if !ok {
+		if _, userOK := s.users[userID]; !userOK {
+			return UserPreferences{}, ErrNotFound
+		}
+		return defaultUserPreferences(userID), nil
+	}
+	return preferences, nil
+}
+
+func (s *MemoryStore) UpdateUserPreferences(_ context.Context, userID string, preferences UserPreferences) (UserPreferences, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.users[userID]; !ok {
+		return UserPreferences{}, ErrNotFound
+	}
+	preferences.UserID = userID
+	preferences.UpdatedAt = time.Now().UTC()
+	s.prefs[userID] = preferences
+	return preferences, nil
 }
 
 func (s *MemoryStore) ListOrganizations(_ context.Context, userID string) ([]Organization, error) {

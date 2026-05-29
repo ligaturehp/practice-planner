@@ -1,16 +1,88 @@
-import { BlockLabelPreset, BlockMap, CellDemandGrid, DayId, DemandGrid, PlannerDay, PlannerState, Sport, TemplateId } from '../models/planner.models';
+import {
+  BlockLabelPreset,
+  BlockMap,
+  CellDemandGrid,
+  DayId,
+  DemandGrid,
+  PlannerDay,
+  PlannerState,
+  Sport,
+  TemplateId,
+  WeekOrder,
+} from '../models/planner.models';
 
 export const DAYS: PlannerDay[] = [
-  { id: 'sat', label: 'SAT', title: 'Recovery' },
-  { id: 'sun', label: 'SUN', title: 'Active Recovery' },
-  { id: 'mon', label: 'MON', title: 'Install' },
-  { id: 'tue', label: 'TUE', title: 'Contact' },
-  { id: 'wed', label: 'WED', title: 'Specials' },
-  { id: 'thu', label: 'THU', title: 'Execution + Speed' },
-  { id: 'fri', label: 'FRI', title: 'Game' },
+  {
+    id: 'mon',
+    label: 'MON',
+    title: 'Install',
+    objective: '',
+    readiness: 'standard',
+    constraints: '',
+    notes: '',
+  },
+  {
+    id: 'tue',
+    label: 'TUE',
+    title: 'Contact',
+    objective: '',
+    readiness: 'standard',
+    constraints: '',
+    notes: '',
+  },
+  {
+    id: 'wed',
+    label: 'WED',
+    title: 'Specials',
+    objective: '',
+    readiness: 'standard',
+    constraints: '',
+    notes: '',
+  },
+  {
+    id: 'thu',
+    label: 'THU',
+    title: 'Execution + Speed',
+    objective: '',
+    readiness: 'standard',
+    constraints: '',
+    notes: '',
+  },
+  {
+    id: 'fri',
+    label: 'FRI',
+    title: 'Game',
+    objective: '',
+    readiness: 'standard',
+    constraints: '',
+    notes: '',
+  },
+  {
+    id: 'sat',
+    label: 'SAT',
+    title: 'Recovery',
+    objective: '',
+    readiness: 'standard',
+    constraints: '',
+    notes: '',
+  },
+  {
+    id: 'sun',
+    label: 'SUN',
+    title: 'Active Recovery',
+    objective: '',
+    readiness: 'standard',
+    constraints: '',
+    notes: '',
+  },
 ];
 
 export const DAY_IDS: DayId[] = DAYS.map((day) => day.id);
+export const SUNDAY_FIRST_DAY_IDS: DayId[] = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+export const GAME_DAY_LAST_IDS: Record<TemplateId, DayId[]> = {
+  gameFriday: ['sat', 'sun', 'mon', 'tue', 'wed', 'thu', 'fri'],
+  gameSaturday: ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'],
+};
 
 export const FOOTBALL_ROW_LABELS = [
   'Pace',
@@ -73,7 +145,8 @@ export const DEFAULT_BLOCK_LABEL_PRESETS: BlockLabelPreset[] = [
     demand: 8,
     tags: ['max speed', 'full rest', 'field space'],
     exposures: ['Max sprint count', 'High-speed running'],
-    notes: 'Build full recovery between reps. Keep volume low if contact is high later in the week.',
+    notes:
+      'Build full recovery between reps. Keep volume low if contact is high later in the week.',
   },
   {
     id: 'preset-contact',
@@ -113,21 +186,165 @@ export const DEFAULT_BLOCK_LABEL_PRESETS: BlockLabelPreset[] = [
 export const TEMPLATES: Record<TemplateId, DemandGrid> = {
   gameFriday: {
     sat: ['Rest', '-', '-', '-', '-', 'Restore', 'Mobility', '-', 'None', 'Recovery', 'High'],
-    sun: ['Easy', 'Longer rest', '< 10 min', 'None', 'Low', 'Walk-thru', 'Fundamentals', 'Low', 'None', 'Recovery', 'Moderate'],
-    mon: ['Moderate', 'Longer rest', '10-15 min', 'None', 'Moderate', 'Install', 'Position skill', 'Moderate', 'Build', 'Strength', 'Low'],
-    tue: ['Fast', 'Short rest', '20-30 min', 'Full contact', 'High', 'Full scheme', 'Competitive', 'High', 'Accel / COD', 'Power', 'Low'],
-    wed: ['Moderate', 'Moderate rest', '10-15 min', 'Limited', 'Moderate', 'Situational', 'Technique', 'Medium', 'Low sprint', 'Volume', 'Moderate'],
-    thu: ['Fast', 'Short + sharp', '15-20 min', 'Limited', 'Low', 'Reps + speed', 'Sharp', 'Medium', 'Max speed', 'Power / speed', 'Low'],
-    fri: ['Max', '-', 'Game', 'Game contact', 'Game', 'Game', 'Game', 'High', 'Game', 'Activate', '-'],
+    sun: [
+      'Easy',
+      'Longer rest',
+      '< 10 min',
+      'None',
+      'Low',
+      'Walk-thru',
+      'Fundamentals',
+      'Low',
+      'None',
+      'Recovery',
+      'Moderate',
+    ],
+    mon: [
+      'Moderate',
+      'Longer rest',
+      '10-15 min',
+      'None',
+      'Moderate',
+      'Install',
+      'Position skill',
+      'Moderate',
+      'Build',
+      'Strength',
+      'Low',
+    ],
+    tue: [
+      'Fast',
+      'Short rest',
+      '20-30 min',
+      'Full contact',
+      'High',
+      'Full scheme',
+      'Competitive',
+      'High',
+      'Accel / COD',
+      'Power',
+      'Low',
+    ],
+    wed: [
+      'Moderate',
+      'Moderate rest',
+      '10-15 min',
+      'Limited',
+      'Moderate',
+      'Situational',
+      'Technique',
+      'Medium',
+      'Low sprint',
+      'Volume',
+      'Moderate',
+    ],
+    thu: [
+      'Fast',
+      'Short + sharp',
+      '15-20 min',
+      'Limited',
+      'Low',
+      'Reps + speed',
+      'Sharp',
+      'Medium',
+      'Max speed',
+      'Power / speed',
+      'Low',
+    ],
+    fri: [
+      'Max',
+      '-',
+      'Game',
+      'Game contact',
+      'Game',
+      'Game',
+      'Game',
+      'High',
+      'Game',
+      'Activate',
+      '-',
+    ],
   },
   gameSaturday: {
-    sat: ['Max', '-', 'Game', 'Game contact', 'Game', 'Game', 'Game', 'High', 'Game', 'Activate', '-'],
+    sat: [
+      'Max',
+      '-',
+      'Game',
+      'Game contact',
+      'Game',
+      'Game',
+      'Game',
+      'High',
+      'Game',
+      'Activate',
+      '-',
+    ],
     sun: ['Rest', '-', '-', '-', '-', 'Restore', 'Mobility', '-', 'None', 'Recovery', 'High'],
-    mon: ['Easy', 'Longer rest', '< 10 min', 'None', 'Low', 'Install', 'Fundamentals', 'Low', 'None', 'Recovery', 'Moderate'],
-    tue: ['Moderate', 'Longer rest', '10-15 min', 'Controlled', 'Moderate', 'Install', 'Position skill', 'Moderate', 'Build', 'Strength', 'Low'],
-    wed: ['Fast', 'Short rest', '20-30 min', 'Full contact', 'High', 'Full scheme', 'Competitive', 'High', 'Accel / COD', 'Power', 'Low'],
-    thu: ['Moderate', 'Moderate rest', '10-15 min', 'Limited', 'Moderate', 'Situational', 'Technique', 'Medium', 'Low sprint', 'Volume', 'Moderate'],
-    fri: ['Fast', 'Short + sharp', '15-20 min', 'Limited', 'Low', 'Reps + speed', 'Sharp', 'Medium', 'Max speed', 'Power / speed', 'Low'],
+    mon: [
+      'Easy',
+      'Longer rest',
+      '< 10 min',
+      'None',
+      'Low',
+      'Install',
+      'Fundamentals',
+      'Low',
+      'None',
+      'Recovery',
+      'Moderate',
+    ],
+    tue: [
+      'Moderate',
+      'Longer rest',
+      '10-15 min',
+      'Controlled',
+      'Moderate',
+      'Install',
+      'Position skill',
+      'Moderate',
+      'Build',
+      'Strength',
+      'Low',
+    ],
+    wed: [
+      'Fast',
+      'Short rest',
+      '20-30 min',
+      'Full contact',
+      'High',
+      'Full scheme',
+      'Competitive',
+      'High',
+      'Accel / COD',
+      'Power',
+      'Low',
+    ],
+    thu: [
+      'Moderate',
+      'Moderate rest',
+      '10-15 min',
+      'Limited',
+      'Moderate',
+      'Situational',
+      'Technique',
+      'Medium',
+      'Low sprint',
+      'Volume',
+      'Moderate',
+    ],
+    fri: [
+      'Fast',
+      'Short + sharp',
+      '15-20 min',
+      'Limited',
+      'Low',
+      'Reps + speed',
+      'Sharp',
+      'Medium',
+      'Max speed',
+      'Power / speed',
+      'Low',
+    ],
   },
 };
 
@@ -186,14 +403,54 @@ export const CELL_INTENT_DEMANDS: Record<string, number> = {
 
 export const SWIM_LANE_INTENT_OPTIONS: Record<string, string[]> = {
   Pace: ['Rest', 'Slow', 'Moderate', 'Fast', 'Max', 'Game'],
-  'Work / rest': ['-', 'Full rest', 'Long rest', 'Longer rest', 'Moderate rest', 'Short rest', 'Short + sharp'],
+  'Work / rest': [
+    '-',
+    'Full rest',
+    'Long rest',
+    'Longer rest',
+    'Moderate rest',
+    'Short rest',
+    'Short + sharp',
+  ],
   'Ball in play': ['-', '< 10 min', '10-15 min', '15-20 min', '20-30 min', '30+ min', 'Game'],
   Contact: ['-', 'None', 'Controlled', 'Limited', 'Full contact', 'Game contact'],
   Volume: ['-', 'Low', 'Moderate', 'High', 'Game'],
-  'Tactical focus': ['Restore', 'Walk-thru', 'Install', 'Situational', 'Full scheme', 'Reps + speed', 'Game'],
-  'Attack / defense': ['Restore', 'Walk-thru', 'Install', 'Situational', 'Full scheme', 'Reps + speed', 'Game'],
-  'Technical skill': ['Mobility', 'Fundamentals', 'Position skill', 'Technique', 'Competitive', 'Sharp', 'Game'],
-  'Unit skills': ['Mobility', 'Fundamentals', 'Position skill', 'Technique', 'Competitive', 'Sharp', 'Game'],
+  'Tactical focus': [
+    'Restore',
+    'Walk-thru',
+    'Install',
+    'Situational',
+    'Full scheme',
+    'Reps + speed',
+    'Game',
+  ],
+  'Attack / defense': [
+    'Restore',
+    'Walk-thru',
+    'Install',
+    'Situational',
+    'Full scheme',
+    'Reps + speed',
+    'Game',
+  ],
+  'Technical skill': [
+    'Mobility',
+    'Fundamentals',
+    'Position skill',
+    'Technique',
+    'Competitive',
+    'Sharp',
+    'Game',
+  ],
+  'Unit skills': [
+    'Mobility',
+    'Fundamentals',
+    'Position skill',
+    'Technique',
+    'Competitive',
+    'Sharp',
+    'Game',
+  ],
   'Decision making': ['-', 'Low', 'Medium', 'Moderate', 'High', 'Game'],
   'Speed exposure': ['None', 'Build', 'Low sprint', 'Accel / COD', 'Max speed', 'Game'],
   'S&C emphasis': ['Recovery', 'Strength', 'Power', 'Volume', 'Power / speed', 'Activate'],
@@ -209,6 +466,21 @@ export function createGrid(templateId: TemplateId): DemandGrid {
   }, {} as DemandGrid);
 }
 
+export function orderedDays(
+  days: PlannerDay[],
+  weekOrder: WeekOrder,
+  template: TemplateId,
+): PlannerDay[] {
+  const order =
+    weekOrder === 'sundayFirst'
+      ? SUNDAY_FIRST_DAY_IDS
+      : weekOrder === 'gameDayLast'
+        ? GAME_DAY_LAST_IDS[template]
+        : DAY_IDS;
+  const dayMap = new Map(days.map((day) => [day.id, day]));
+  return order.map((id) => dayMap.get(id)).filter((day): day is PlannerDay => Boolean(day));
+}
+
 export function demandForCellIntent(value: string, label = ''): number {
   const normalized = value.trim().toLowerCase();
   if (label === 'Recovery emphasis') {
@@ -222,16 +494,22 @@ export function demandForCellIntent(value: string, label = ''): number {
   if (normalized.includes('game')) return 4;
   if (normalized.includes('full') || normalized.includes('high')) return 3;
   if (normalized.includes('moderate') || normalized.includes('medium')) return 2;
-  if (normalized.includes('low') || normalized.includes('easy') || normalized.includes('recovery')) return 1;
+  if (normalized.includes('low') || normalized.includes('easy') || normalized.includes('recovery'))
+    return 1;
   return 0;
 }
 
-export function createCellDemands(templateId: TemplateId, sport: Sport = 'football'): CellDemandGrid {
+export function createCellDemands(
+  templateId: TemplateId,
+  sport: Sport = 'football',
+): CellDemandGrid {
   const grid = createGrid(templateId);
   const rowLabels = rowLabelsForSport(sport);
 
   return DAY_IDS.reduce((demands, dayId) => {
-    demands[dayId] = grid[dayId].map((value, index) => demandForCellIntent(value, rowLabels[index]));
+    demands[dayId] = grid[dayId].map((value, index) =>
+      demandForCellIntent(value, rowLabels[index]),
+    );
     return demands;
   }, {} as CellDemandGrid);
 }

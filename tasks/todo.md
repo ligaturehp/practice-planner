@@ -1,5 +1,137 @@
 # Practice Planner Prototype
 
+## Day Details Drawer UX Plan
+
+- [x] Rename the user-facing `Inspector` entry point to a clearer day-planning/details surface.
+- [x] Add structured day-level fields beyond the grid: objective, constraints, readiness, and coach notes.
+- [x] Keep the drawer organized into logical sections so day context, assigned work, adding work, and label-library management do not run together.
+- [x] Make the opened drawer own vertical scrolling at desktop and mobile widths without causing the weekly grid/page to scroll.
+- [x] Preserve saved-plan compatibility by defaulting missing detail fields for older plans.
+- [x] Add focused regression coverage for day detail updates and drawer labels/structure.
+- [x] Verify with frontend tests/build and browser checks for drawer scrolling and detail-field persistence.
+
+### UX Analysis: Day Details Drawer
+
+Current issues:
+
+- The visible `Inspector` label is developer-centric and does not describe the coach workflow.
+- The drawer already mixes summary, current blocks, creation actions, and label configuration; adding more fields without stronger grouping would increase cognitive load.
+- The drawer does not consistently own its scroll container, so wheel/trackpad scrolling can move the grid behind the drawer instead of the drawer content.
+- The grid captures the main demand matrix, but there is no structured place for day objective, constraints, readiness, or coaching notes.
+
+Recommended solution:
+
+- Use `Day Details` as the visible feature name and keep it in the header near the planner controls.
+- Put editable day context in the first section: focus, objective, readiness, constraints, and coach notes.
+- Keep assigned work, add-block action, and label library as separate sections below the day context.
+- Use an internal scroll region inside the fixed drawer with `overscroll-behavior: contain` so the drawer scrolls independently.
+- Keep the detail fields optional, compact, and compatible with existing saved plans.
+
+Implementation notes:
+
+- Cognitive Load and Chunking: group day-level notes separately from block-level controls.
+- Hick's Law: use one readiness selector with a small set of options instead of a broad custom status system.
+- Law of Proximity: keep summary metrics next to day context, and block actions next to assigned blocks.
+- Jakob's Law: use a conventional right-side details drawer with a fixed header and scrollable body.
+- Fitts's Law: keep close/action buttons and section controls at practical target sizes.
+
+### Day Details Drawer Review
+
+- Renamed the visible header action from `Inspector` to `Day Details`; the drawer heading now reads `Planning Details`.
+- Added editable day-level context fields: day focus, readiness posture, primary objective, constraints, and coach notes.
+- Kept the drawer grouped into `Day Brief`, `Current Day Blocks`, `Add Training Block`, and `Label Library` sections.
+- Added `PlannerDay` detail fields to new plans and normalize missing detail fields when older saved plans are loaded.
+- Added backend plan validation for optional day details and readiness values.
+- Fixed drawer scrolling by making the fixed drawer an explicit viewport-height flex container and moving overflow to `.planning-drawer-body` with contained overscroll.
+- Verification passed: `go test ./...` in `backend/`; `npm run test:node`; `npm test -- --watch=false`; `API_BASE_URL=http://127.0.0.1:8092 npm run build`.
+- Browser verification passed at `http://127.0.0.1:4304/` with a `900x620` viewport: drawer body scrolled from `0` to `682` while `window.scrollY` stayed `0`.
+- Browser screenshot saved at `frontend/__screenshots__/day-details-drawer-scroll.png`.
+
+## Profile Preferences And Week Order Plan
+
+- [x] Add a user profile/preferences model for account users, starting with week display order.
+- [x] Keep the default week order Monday-first.
+- [x] Provide Sunday-first and game-relative week order options, where game-relative keeps the game day last.
+- [x] Make the weekly grid render from the selected display order without changing canonical day IDs or saved block data.
+- [x] Add an account/profile navigation surface that groups Account, Teams, Plans, and Preferences without crowding the main planner.
+- [x] Apply UX laws: keep top-level profile sections to 4 tabs, group related controls, use conventional account/settings navigation, and keep touch targets large enough.
+- [x] Persist account preferences after sign-in and apply them on bootstrap/login/register.
+- [x] Add regression tests for default Monday-first order and saved preference behavior.
+- [x] Verify with backend tests, frontend tests/build, and a browser flow that changes week order and confirms the board reorders correctly.
+
+### UX Analysis: Profile Preferences
+
+Current issues:
+
+- Week order is hard-coded Saturday-first, which conflicts with the expected Monday-first default and makes the planner feel oriented around a specific game-week assumption.
+- Account, teams, plans, and future preferences are currently crowded into the saved-plans drawer, increasing cognitive load as account features grow.
+- The app has no account settings area where a signed-in user can manage preferences after account creation.
+
+Recommended solution:
+
+- Use one profile drawer opened from the header with four tabs: Account, Teams, Plans, Preferences.
+- Put week order in Preferences as a segmented control with three choices: Monday first, Sunday first, Game day last.
+- Default to Monday first for every new local state and every new account preference.
+- Store the selected preference with the account and apply it to the planner display order on bootstrap/login/register.
+- Preserve canonical `DayId` keys, grid data, blocks, and plan payload shape; only reorder the display collection used by the board.
+
+Implementation notes:
+
+- Hick's Law: expose only three week-order choices now instead of a broad custom reorder UI.
+- Miller's Law: keep profile navigation to four sections.
+- Law of Proximity: place week-order controls near a concise preview of the resulting day sequence.
+- Jakob's Law: use the familiar Account/Profile entry point in the header, not hidden controls inside the grid.
+- Fitts's Law: use full-size tab and segmented-control buttons rather than small inline links.
+
+### Profile Preferences And Week Order Review
+
+- Added backend `user_preferences` storage with `week_order`, defaulting existing and new users to `mondayFirst`.
+- Added authenticated profile preference endpoints: `GET /api/profile/preferences` and `PUT /api/profile/preferences`.
+- Added frontend API/state support for preferences and display-only week ordering.
+- The board now defaults to Monday-first and can render Sunday-first or game-day-last without changing saved day IDs, grid keys, blocks, or plan payload shape.
+- Reworked the saved-plans drawer into a profile drawer with four tabs: Account, Teams, Plans, and Preferences.
+- Week order uses a three-option segmented control with an inline day-sequence preview.
+- Verification passed: `go test ./internal/app -run 'TestUserPreferencesDefaultAndUpdate|TestRegisterDoesNotKeepUserWhenSessionCreationFails' -count=1`; `go test ./...` in `backend/`; `npm test -- --watch=false`; `npm run test:node`; `API_BASE_URL=http://127.0.0.1:8093 npm run build`.
+- Browser verification passed at `http://127.0.0.1:4303/`: default order was `MON,TUE,WED,THU,FRI,SAT,SUN`; account creation succeeded; Sunday-first persisted after reload; game-day-last changed the Friday-game template to `SAT,SUN,MON,TUE,WED,THU,FRI`.
+- Browser screenshot saved at `frontend/__screenshots__/profile-week-order-preferences.png`.
+
+## Account Creation And Plan Persistence Review
+
+- [x] Trace account registration, login, session, CSRF, organization creation, and first-plan flows from frontend to backend.
+- [x] Inspect local database state for users, organizations, plans, plan versions, and unnamed-plan patterns.
+- [x] Verify backend sign-up and authentication API behavior directly against the local Go API.
+- [x] Identify whether unnamed plans come from expected autosave/versioning behavior or from accidental plan creation.
+- [x] Implement the smallest backend root-cause fix for partial account creation during registration.
+- [x] Add backend regression coverage for partial registration failures.
+- [x] Verify with backend tests and a direct local API flow.
+- [x] Document findings, fix, and remaining risks in this file.
+
+### Backend Auth API Check Notes
+
+- Local API target: `http://127.0.0.1:8092`, with frontend origin `http://127.0.0.1:4201`.
+- `POST /api/auth/register` returned `201 Created`, set the session cookie, and `GET /api/auth/me` returned the registered user from that cookie.
+- `GET /api/auth/csrf` returned a 64-character token for the authenticated session.
+- `POST /api/plans` correctly rejected an incomplete planner payload with `400 all planner days are required`.
+- `POST /api/plans` accepted a valid full planner payload with `201 Created`.
+- `POST /api/auth/logout` returned `204 No Content`; `GET /api/auth/me` then returned `401 authentication required`.
+- `POST /api/auth/login` rejected a wrong password with `401 invalid email or password`.
+- `POST /api/auth/login` accepted the registered credentials with `200 OK`; `GET /api/plans` then returned the saved plan.
+- Temporary API test users were removed after verification.
+- Local Postgres after cleanup: one pre-existing user, zero plans, zero plan versions.
+- Desktop SQLite store at `~/Library/Application Support/Practice Planner/practice-planner.sqlite`: zero saved plans.
+
+### Backend Auth API Fix Review
+
+- Root cause fixed: registration previously created the user and default organization before issuing the session. A session persistence failure could make the API return signup failure while leaving a user who could later log in.
+- Backend registration now creates the user, default organization, and initial session in one store operation before setting the session cookie.
+- PostgreSQL registration uses one transaction for user, organization, and session creation.
+- In-memory test storage follows the same contract.
+- Added regression coverage proving a simulated session creation failure does not leave a login-capable user behind.
+- Verification passed: `go test ./internal/app -run TestRegisterDoesNotKeepUserWhenSessionCreationFails -count=1`; `go test ./...` in `backend/`.
+- Live local API verification after the fix passed: register `201`, me `200`, CSRF token length `64`, create plan `201`, logout `204`, me after logout `401`, bad login `401`, good login `200`, plan list `200` with one saved plan.
+- Remaining risk outside the backend API: frontend signup/login still does not automatically attach the current guest draft to an account plan, and account autosave remains idle until a plan is saved or loaded.
+- Plan-row finding: backend signed-in autosave updates the active plan with `PUT` and should not create a new plan row per edit; heavy autosave can still grow `plan_versions`. Desktop/local fallback saves insert new rows by design.
+
 ## Follow-up Plan: Active Cell Collapse Control
 
 - [x] Add an in-cell control that collapses the active matrix editor without selecting another cell.
